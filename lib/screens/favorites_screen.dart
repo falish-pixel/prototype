@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'recipe_detail_screen.dart';
+import '../services/language_service.dart'; // Импорт сервиса
 
 class FavoritesScreen extends StatelessWidget {
   const FavoritesScreen({super.key});
@@ -11,19 +12,24 @@ class FavoritesScreen extends StatelessWidget {
     final user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {
-      return const Scaffold(
-        body: Center(child: Text("Сначала войдите в аккаунт")),
+      return Scaffold(
+        body: Center(
+            child: Text(LanguageService.tr('login_subtitle')) // "Войдите..."
+        ),
       );
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text("Мои рецепты")),
+      appBar: AppBar(
+        // ПЕРЕВОД ЗАГОЛОВКА
+        title: Text(LanguageService.tr('my_recipes')),
+      ),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
             .collection('users')
             .doc(user.uid)
             .collection('favorites')
-            .orderBy('savedAt', descending: true) // Сортируем: новые сверху
+            .orderBy('savedAt', descending: true)
             .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -31,13 +37,17 @@ class FavoritesScreen extends StatelessWidget {
           }
 
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return const Center(
+            return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.favorite_border, size: 60, color: Colors.grey),
-                  SizedBox(height: 16),
-                  Text("Пока нет любимых рецептов", style: TextStyle(color: Colors.grey)),
+                  const Icon(Icons.favorite_border, size: 60, color: Colors.grey),
+                  const SizedBox(height: 16),
+                  // ПЕРЕВОД ПУСТОГО ЭКРАНА
+                  Text(
+                      LanguageService.tr('no_favorites'),
+                      style: const TextStyle(color: Colors.grey)
+                  ),
                 ],
               ),
             );
@@ -51,10 +61,8 @@ class FavoritesScreen extends StatelessWidget {
             itemBuilder: (context, index) {
               final data = docs[index].data() as Map<String, dynamic>;
 
-              // Превращаем данные Firestore обратно в нужный нам формат
-              // Важно: Firestore может вернуть null поля, страхуемся
               final recipe = {
-                'name': data['name'] ?? 'Без названия',
+                'name': data['name'] ?? 'No Name',
                 'time': data['time'] ?? '',
                 'kcal': data['kcal'] ?? '',
                 'ingredients': data['ingredients'] ?? [],

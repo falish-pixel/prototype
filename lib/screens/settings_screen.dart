@@ -1,8 +1,7 @@
 // Файл: lib/screens/settings_screen.dart
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import '../services/language_service.dart'; // Импорт сервиса языков
+import '../services/language_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -22,7 +21,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _loadSettings();
   }
 
-  // Загружаем сохраненные настройки при входе
   Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
@@ -32,7 +30,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     });
   }
 
-  // Сохраняем настройку при изменении
   Future<void> _saveSetting(String key, bool value) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(key, value);
@@ -41,43 +38,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        // Заголовок берем из словаря
-        title: Text(LanguageService.tr('settings')),
-      ),
+      appBar: AppBar(title: Text(LanguageService.tr('settings'))),
       body: ListView(
         children: [
-
-          // --- СЕКЦИЯ ЯЗЫКА (НОВАЯ) ---
+          // ЯЗЫК
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: Text(
-              LanguageService.tr('language'), // "Язык" / "Тіл"
-              style: const TextStyle(
-                  color: Colors.green, fontWeight: FontWeight.bold),
-            ),
+            child: Text(LanguageService.tr('language'),
+                style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
           ),
           Card(
             margin: const EdgeInsets.symmetric(horizontal: 16),
-            color: Colors.white,
-            elevation: 2,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               child: DropdownButtonHideUnderline(
                 child: DropdownButton<String>(
                   value: LanguageService.currentLanguage.value,
                   isExpanded: true,
-                  icon: const Icon(Icons.language, color: Colors.green),
                   items: const [
                     DropdownMenuItem(value: 'ru', child: Text("🇷🇺 Русский")),
                     DropdownMenuItem(value: 'kk', child: Text("🇰🇿 Қазақ тілі")),
                     DropdownMenuItem(value: 'en', child: Text("🇺🇸 English")),
                   ],
-                  onChanged: (String? newValue) {
-                    if (newValue != null) {
-                      // Меняем язык глобально
-                      LanguageService.setLanguage(newValue);
-                      // Обновляем текущий экран, чтобы Dropdown перерисовался
+                  onChanged: (val) {
+                    if (val != null) {
+                      LanguageService.setLanguage(val);
                       setState(() {});
                     }
                   },
@@ -85,20 +70,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
           ),
-
           const Divider(height: 30),
 
-          // --- СЕКЦИЯ ПРОФИЛЯ ---
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: Text("Аккаунт", // Можно тоже добавить в словарь как 'account'
-                style: TextStyle(
-                    color: Colors.green, fontWeight: FontWeight.bold)),
+          // АККАУНТ
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: Text(LanguageService.tr('account'), // <-- ИСПРАВЛЕНО
+                style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
           ),
           ListTile(
             leading: const Icon(Icons.person, color: Colors.green),
-            title: const Text("Изменить имя"), // 'change_name'
-            subtitle: const Text("Настройте, как к вам обращаться"),
+            title: Text(LanguageService.tr('change_name')), // <-- ИСПРАВЛЕНО
+            subtitle: Text(LanguageService.tr('change_name_hint')), // <-- ИСПРАВЛЕНО
             trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
             onTap: () async {
               final result = await Navigator.pushNamed(context, '/profile');
@@ -107,18 +90,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
               }
             },
           ),
-
           const Divider(height: 30),
 
-          // --- СЕКЦИЯ ПИЩЕВЫХ ПРЕДПОЧТЕНИЙ ---
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: Text("Пищевые ограничения", // 'food_restrictions'
-                style: TextStyle(
-                    color: Colors.green, fontWeight: FontWeight.bold)),
+          // ПИЩЕВЫЕ ОГРАНИЧЕНИЯ
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: Text(LanguageService.tr('food_restrictions'), // <-- ИСПРАВЛЕНО
+                style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
           ),
           SwitchListTile(
-            title: const Text("Без Глютена"), // 'gluten_free'
+            title: Text(LanguageService.tr('gluten_free')), // <-- ИСПРАВЛЕНО
             secondary: const Icon(Icons.bakery_dining),
             value: _glutenFree,
             onChanged: (val) {
@@ -127,7 +108,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             },
           ),
           SwitchListTile(
-            title: const Text("Без Лактозы"), // 'lactose_free'
+            title: Text(LanguageService.tr('lactose_free')), // <-- ИСПРАВЛЕНО
             secondary: const Icon(Icons.local_drink),
             value: _lactoseFree,
             onChanged: (val) {
@@ -136,7 +117,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             },
           ),
           SwitchListTile(
-            title: const Text("Аллергия на Орехи"), // 'nut_allergy'
+            title: Text(LanguageService.tr('nut_allergy')), // <-- ИСПРАВЛЕНО
             secondary: const Icon(Icons.nature_people),
             value: _nutAllergy,
             onChanged: (val) {

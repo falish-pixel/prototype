@@ -1,5 +1,7 @@
+// Файл: lib/screens/login_screen.dart
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
+import '../services/language_service.dart'; // ИМПОРТ
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -14,13 +16,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void _handleGoogleSignIn() async {
     setState(() => _isLoading = true);
-    final user = await _authService.signInWithGoogle();
+    await _authService.signInWithGoogle();
     setState(() => _isLoading = false);
-
-    // Если вход успешен, StreamBuilder в main.dart сам переключит экран
-    if (user != null) {
-      print("Успешный вход: ${user.user?.email}");
-    }
   }
 
   @override
@@ -33,7 +30,6 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Логотип или иконка
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
@@ -43,25 +39,29 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: const Icon(Icons.restaurant_menu, size: 60, color: Colors.green),
               ),
               const SizedBox(height: 30),
-              const Text(
-                "Smart Recipe Generator",
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+
+              // Название приложения берем из словаря
+              Text(
+                LanguageService.tr('app_title'),
+                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
               ),
               const SizedBox(height: 10),
-              const Text(
-                "Войдите, чтобы сохранять рецепты",
-                style: TextStyle(color: Colors.grey),
+              // Подзаголовок переведен
+              Text(
+                LanguageService.tr('login_subtitle'),
+                style: const TextStyle(color: Colors.grey),
+                textAlign: TextAlign.center,
               ),
               const SizedBox(height: 50),
 
               if (_isLoading)
                 const CircularProgressIndicator(color: Colors.green)
               else ...[
-                // Кнопка Google
                 ElevatedButton.icon(
                   onPressed: _handleGoogleSignIn,
-                  icon: const Icon(Icons.login), // Можно найти иконку Google в пакете font_awesome_flutter
-                  label: const Text("Войти через Google"),
+                  icon: const Icon(Icons.login),
+                  label: Text(LanguageService.tr('login_google')), // <-- ПЕРЕВОД
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.white,
                     foregroundColor: Colors.black,
@@ -70,15 +70,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                // Заготовка под телефон (реализация сложнее из-за SMS кода)
                 OutlinedButton.icon(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("Вход по телефону требует дополнительной настройки SMS")),
-                    );
-                  },
+                  onPressed: () {},
                   icon: const Icon(Icons.phone),
-                  label: const Text("Войти по номеру телефона"),
+                  label: Text(LanguageService.tr('login_phone')), // <-- ПЕРЕВОД
                   style: OutlinedButton.styleFrom(
                     minimumSize: const Size(double.infinity, 50),
                     foregroundColor: Colors.green,
