@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../services/language_service.dart'; // <--- Добавили импорт
 
 class RecipeDetailScreen extends StatefulWidget {
   final Map<String, dynamic> recipe;
@@ -39,8 +40,10 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
 
   Future<void> _toggleFavorite() async {
     if (user == null) {
+      // ИСПОЛЬЗУЕМ ПЕРЕВОД: "Войдите, чтобы сохранять рецепты"
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Войдите, чтобы сохранять рецепты")));
+          SnackBar(content: Text(LanguageService.tr('login_subtitle')))
+      );
       return;
     }
     setState(() => isFavorite = !isFavorite);
@@ -61,7 +64,8 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
   Future<void> _openYouTube() async {
     final recipeName = widget.recipe['name'];
     final query = Uri.encodeComponent("рецепт $recipeName");
-    final url = Uri.parse("[https://www.youtube.com/results?search_query=$query](https://www.youtube.com/results?search_query=$query)");
+    // Ссылка исправлена (убрал лишнее дублирование из твоего старого кода)
+    final url = Uri.parse("https://www.youtube.com/results?search_query=$query");
     try {
       if (await canLaunchUrl(url)) {
         await launchUrl(url, mode: LaunchMode.externalApplication);
@@ -70,7 +74,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Ошибка: $e")));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
       }
     }
   }
@@ -80,7 +84,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
     final name = widget.recipe['name'] ?? 'Food';
     final int lockId = name.hashCode;
 
-    // ИСПОЛЬЗУЕМ LOREMFLICKR (Реальные фото еды высокого качества)
+    // ИСПОЛЬЗУЕМ LOREMFLICKR
     final imageUrl = 'https://loremflickr.com/320/240/food,dish?lock=$lockId';
 
     return Scaffold(
@@ -142,7 +146,11 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                     child: ElevatedButton.icon(
                       onPressed: _openYouTube,
                       icon: const Icon(Icons.play_circle_fill, color: Colors.white),
-                      label: const Text("Смотреть видео-рецепт", style: TextStyle(color: Colors.white)),
+                      // ИСПОЛЬЗУЕМ ПЕРЕВОД: Кнопка видео
+                      label: Text(
+                          LanguageService.tr('video_recipe'),
+                          style: const TextStyle(color: Colors.white)
+                      ),
                       style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.red,
                           padding: const EdgeInsets.symmetric(vertical: 12),
@@ -151,7 +159,12 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                     ),
                   ),
                   const Divider(height: 30),
-                  const Text("Ингредиенты:", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+
+                  // ИСПОЛЬЗУЕМ ПЕРЕВОД: Заголовок ингредиентов
+                  Text(
+                      LanguageService.tr('ingredients_title'),
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)
+                  ),
                   const SizedBox(height: 8),
                   if (widget.recipe['ingredients'] is List)
                     ...List.generate((widget.recipe['ingredients'] as List).length, (index) {
@@ -167,7 +180,12 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                       );
                     }),
                   const Divider(height: 30),
-                  const Text("Инструкция:", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+
+                  // ИСПОЛЬЗУЕМ ПЕРЕВОД: Заголовок инструкции
+                  Text(
+                      LanguageService.tr('steps_title'),
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)
+                  ),
                   const SizedBox(height: 8),
                   if (widget.recipe['steps'] is List)
                     ...List.generate((widget.recipe['steps'] as List).length, (index) {
