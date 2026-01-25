@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // Добавил импорт
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -53,9 +54,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
             title: const Text("Изменить имя"),
             subtitle: const Text("Настройте, как к вам обращаться"),
             trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
-            onTap: () {
-              // Переход на экран профиля
-              Navigator.pushNamed(context, '/profile');
+            onTap: () async {
+              // 1. Ждем возврата из профиля и проверяем результат
+              final result = await Navigator.pushNamed(context, '/profile');
+
+              // 2. Если профиль вернул true (значит имя меняли),
+              // то мы закрываем настройки и тоже передаем true на Главный экран
+              if (result == true && context.mounted) {
+                // Можно просто выйти назад, передав true
+                Navigator.pop(context, true);
+              }
             },
           ),
 
@@ -70,7 +78,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           SwitchListTile(
             title: const Text("Без Глютена"),
-            secondary: const Icon(Icons.bakery_dining), // Иконка для красоты
+            secondary: const Icon(Icons.bakery_dining),
             value: _glutenFree,
             onChanged: (val) {
               setState(() => _glutenFree = val);

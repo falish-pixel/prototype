@@ -1,10 +1,9 @@
-import 'dart:io';
+// Файл: lib/screens/home_screen.dart
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'scan_screen.dart';
 
-// 1. Меняем на StatefulWidget
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -13,31 +12,39 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  // Получаем текущего пользователя
-  User? user = FirebaseAuth.instance.currentUser;
 
-  // Функция для обновления данных пользователя при возврате
-  void _refreshUser() async {
-    await user?.reload(); // Обновляем данные с сервера
-    setState(() {
-      user = FirebaseAuth.instance.currentUser; // Перечитываем объект
-    });
+  // Функция для обновления (оставляем её на всякий случай для настроек)
+  Future<void> _refreshUser() async {
+    await FirebaseAuth.instance.currentUser?.reload();
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Если имя не задано, используем "Шеф"
-    String displayName = user?.displayName ?? "Шеф";
-    if (displayName.isEmpty) displayName = "Шеф";
+    // Нам больше не нужно получать user здесь один раз,
+    // мы будем слушать его в StreamBuilder ниже
 
     return Scaffold(
       appBar: AppBar(
-        // 2. Используем имя переменной
-        title: Text('Привет, $displayName!'),
+        // !!! ГЛАВНОЕ ИЗМЕНЕНИЕ ЗДЕСЬ !!!
+        // StreamBuilder автоматически следит за изменениями пользователя (имени, фото)
+        title: StreamBuilder<User?>(
+          stream: FirebaseAuth.instance.userChanges(),
+          builder: (context, snapshot) {
+            final user = snapshot.data;
+            // Логика получения имени
+            final displayName = (user?.displayName != null && user!.displayName!.isNotEmpty)
+                ? user!.displayName!
+                : "Шеф";
+
+            return Text('Привет, $displayName!');
+          },
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
-            tooltip: "Выйти из аккаунта",
             onPressed: () async {
               await FirebaseAuth.instance.signOut();
             },
@@ -45,9 +52,17 @@ class _HomeScreenState extends State<HomeScreen> {
           IconButton(
             icon: const Icon(Icons.settings),
             onPressed: () async {
-              // 3. Ждем возврата из настроек и обновляем экран
-              await Navigator.pushNamed(context, '/settings');
-              _refreshUser();
+              // 1. Ждем возврата из настроек
+              final result = await Navigator.pushNamed(context, '/settings');
+
+              // 2. Если настройки передали true, значит данные изменились
+              if (result == true) {
+                await FirebaseAuth.instance.currentUser?.reload(); // На всякий случай еще раз
+                if (mounted) setState(() {}); // Принудительно перерисовываем экран
+              } else {
+                // Даже если false, на всякий случай обновим (не повредит)
+                await _refreshUser();
+              }
             },
           ),
         ],
@@ -80,9 +95,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ... (методы _showPickerOptions и _pickImage остаются без изменений)
   void _showPickerOptions(BuildContext context) {
-    // ... ваш код ...
     showModalBottomSheet(
       context: context,
       builder: (BuildContext bc) {
@@ -91,17 +104,17 @@ class _HomeScreenState extends State<HomeScreen> {
             children: <Widget>[
               ListTile(
                   leading: const Icon(Icons.photo_library),
-                  title: const Text('Выбрать из галереи'),
+                  title: const Text('Галерея'),
                   onTap: () {
-                    _pickImage(context, ImageSource.gallery);
-                    Navigator.of(context).pop();
+                    Navigator.pop(context);
+                    _pickImage(ImageSource.gallery);
                   }),
               ListTile(
                 leading: const Icon(Icons.photo_camera),
-                title: const Text('Сделать фото'),
+                title: const Text('Камера'),
                 onTap: () {
-                  _pickImage(context, ImageSource.camera);
-                  Navigator.of(context).pop();
+                  Navigator.pop(context);
+                  _pickImage(ImageSource.camera);
                 },
               ),
             ],
@@ -111,17 +124,13 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Future<void> _pickImage(BuildContext context, ImageSource source) async {
-    // ... ваш код ...
+  Future<void> _pickImage(ImageSource source) async {
     final ImagePicker picker = ImagePicker();
     final XFile? image = await picker.pickImage(source: source);
-
-    if (image != null) {
+    if (image != null && mounted) {
       Navigator.push(
         context,
-        MaterialPageRoute(
-          builder: (context) => AiRecipesScreen(imagePath: image.path),
-        ),
+        MaterialPageRoute(builder: (context) => AiRecipesScreen(imagePath: image.path)),
       );
     }
   }

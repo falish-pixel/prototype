@@ -1,3 +1,4 @@
+// Файл: lib/screens/profile_screen.dart
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
@@ -16,7 +17,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
-    // Подставляем текущее имя при открытии
     if (user != null) {
       _nameController.text = user?.displayName ?? "";
     }
@@ -24,30 +24,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _updateName() async {
     if (_nameController.text.isEmpty) return;
-
     setState(() => _isLoading = true);
 
     try {
-      // 1. Обновляем имя в профиле Firebase
+      // 1. Обновляем имя
       await user?.updateDisplayName(_nameController.text.trim());
-
-      // 2. Перезагружаем пользователя, чтобы данные обновились локально
+      // 2. Обновляем локальные данные (reload)
       await user?.reload();
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Имя успешно обновлено!")),
-        );
-        Navigator.pop(context); // Возвращаемся назад
-      }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Ошибка: $e")),
-        );
+      final String errorText = e.toString();
+      // Игнорируем ошибку Pigeon, если она вылезет
+      if (errorText.contains('PigeonUserInfo') || errorText.contains('List<Object?>')) {
+        try { await user?.reload(); } catch(_) {}
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Ошибка: $e")));
+          setState(() => _isLoading = false);
+        }
+        return;
       }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Имя сохранено!")));
+      // Возвращаемся назад
+      Navigator.pop(context);
     }
   }
 
@@ -59,33 +60,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            const Text(
-              "Как к вам обращаться?",
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 20),
             TextField(
               controller: _nameController,
-              decoration: const InputDecoration(
-                labelText: "Ваше имя",
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.person),
-              ),
+              decoration: const InputDecoration(labelText: "Ваше имя", border: OutlineInputBorder()),
             ),
-            const SizedBox(height: 30),
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton(
-                onPressed: _isLoading ? null : _updateName,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                  foregroundColor: Colors.white,
-                ),
-                child: _isLoading
-                    ? const CircularProgressIndicator(color: Colors.white)
-                    : const Text("Сохранить"),
-              ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: _isLoading ? null : _updateName,
+              child: _isLoading ? const CircularProgressIndicator() : const Text("Сохранить"),
             ),
           ],
         ),

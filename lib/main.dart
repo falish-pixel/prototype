@@ -4,7 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'screens/home_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/login_screen.dart';
-import 'screens/profile_screen.dart'; // <--- 1. ОБЯЗАТЕЛЬНО ДОБАВЬТЕ ИМПОРТ
+import 'screens/profile_screen.dart'; // Не забудьте импорт
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -30,7 +30,7 @@ class SmartRecipeApp extends StatelessWidget {
         '/home': (context) => const HomeScreen(),
         '/settings': (context) => const SettingsScreen(),
         '/login': (context) => const LoginScreen(),
-        '/profile': (context) => const ProfileScreen(), // <--- 2. ДОБАВЬТЕ ЭТУ СТРОКУ
+        '/profile': (context) => const ProfileScreen(),
       },
     );
   }
@@ -42,14 +42,19 @@ class AuthGate extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<User?>(
-      stream: FirebaseAuth.instance.authStateChanges(),
+      // !!! ГЛАВНОЕ ИЗМЕНЕНИЕ: userChanges() вместо authStateChanges() !!!
+      // Это позволяет ловить обновление имени и фото
+      stream: FirebaseAuth.instance.userChanges(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(body: Center(child: CircularProgressIndicator()));
         }
+
         if (snapshot.hasData) {
-          return const HomeScreen();
+          // Убираем const, чтобы экран пересоздавался при обновлении данных
+          return HomeScreen();
         }
+
         return const LoginScreen();
       },
     );

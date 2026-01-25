@@ -16,7 +16,7 @@ class AiRecipesScreen extends StatefulWidget {
 }
 
 class _AiRecipesScreenState extends State<AiRecipesScreen> {
-  final String apiKey = 'AIzaSyCAADvhvtr6HHTlYpQloAG5bcQ7bWImXS4';
+  final String apiKey = '12345687897465411316546';
 
   List<Map<String, dynamic>> recipes = [];
   bool isLoading = true;
