@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:url_launcher/url_launcher.dart'; // Не забудь добавить этот импорт!
 
 class RecipeDetailScreen extends StatefulWidget {
   final Map<String, dynamic> recipe;
@@ -13,7 +14,7 @@ class RecipeDetailScreen extends StatefulWidget {
 
 class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
   bool isFavorite = false;
-  bool isLoading = true; // Чтобы кнопка не мигала при загрузке
+  bool isLoading = true;
   final User? user = FirebaseAuth.instance.currentUser;
 
   @override
@@ -22,7 +23,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
     _checkIfFavorite();
   }
 
-  // Проверяем, есть ли этот рецепт уже в базе
+  // Проверка избранного
   Future<void> _checkIfFavorite() async {
     if (user == null) return;
 
@@ -30,7 +31,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
         .collection('users')
         .doc(user!.uid)
         .collection('favorites')
-        .where('name', isEqualTo: widget.recipe['name']) // Ищем по названию
+        .where('name', isEqualTo: widget.recipe['name'])
         .limit(1)
         .get();
 
@@ -42,7 +43,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
     }
   }
 
-  // Добавляем или удаляем из избранного
+  // Переключение избранного
   Future<void> _toggleFavorite() async {
     if (user == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -50,29 +51,47 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
       return;
     }
 
-    setState(() => isFavorite = !isFavorite); // Сразу меняем визуально
+    setState(() => isFavorite = !isFavorite);
 
     final collection = FirebaseFirestore.instance
         .collection('users')
         .doc(user!.uid)
         .collection('favorites');
 
-    // Сначала ищем, есть ли рецепт (чтобы узнать его ID для удаления)
     final query = await collection
         .where('name', isEqualTo: widget.recipe['name'])
         .limit(1)
         .get();
 
     if (query.docs.isNotEmpty) {
-      // Если есть - удаляем
       await query.docs.first.reference.delete();
     } else {
-      // Если нет - добавляем
-      // Добавляем дату сохранения, чтобы потом сортировать
       final dataToSave = Map<String, dynamic>.from(widget.recipe);
       dataToSave['savedAt'] = FieldValue.serverTimestamp();
-
       await collection.add(dataToSave);
+    }
+  }
+
+  // --- НОВАЯ ФУНКЦИЯ: ОТКРЫТЬ YOUTUBE ---
+  Future<void> _openYouTube() async {
+    final recipeName = widget.recipe['name'];
+    // Формируем поисковый запрос: "Рецепт [Название блюда]"
+    final query = Uri.encodeComponent("рецепт $recipeName");
+    final url = Uri.parse("https://www.youtube.com/results?search_query=$query");
+
+    try {
+      if (await canLaunchUrl(url)) {
+        await launchUrl(url, mode: LaunchMode.externalApplication);
+      } else {
+        // Если не открылось, пробуем универсальный способ
+        await launchUrl(url);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Не удалось открыть YouTube: $e"))
+        );
+      }
     }
   }
 
@@ -82,7 +101,6 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
       appBar: AppBar(
         title: Text(widget.recipe['name'] ?? 'Рецепт'),
         actions: [
-          // Кнопка избранного
           if (!isLoading)
             IconButton(
               icon: Icon(
@@ -98,12 +116,14 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Заголовок и калории
+            // Название
             Text(
               widget.recipe['name'],
               style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
+
+            // Время и Ккал
             Row(
               children: [
                 const Icon(Icons.timer, color: Colors.grey),
@@ -115,6 +135,26 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                 Text(widget.recipe['kcal'] ?? 'N/A'),
               ],
             ),
+
+            const SizedBox(height: 20),
+
+            // --- КНОПКА YOUTUBE ---
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _openYouTube,
+                icon: const Icon(Icons.play_circle_fill, color: Colors.white),
+                label: const Text("Смотреть видео-рецепт",
+                    style: TextStyle(color: Colors.white, fontSize: 16)),
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red, // Фирменный цвет YouTube
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)
+                    )
+                ),
+              ),
+            ),
             const Divider(height: 30),
 
             // Ингредиенты
@@ -123,27 +163,23 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            // Проверка на null и тип List
             if (widget.recipe['ingredients'] is List)
-              ...List.generate((widget.recipe['ingredients'] as List).length,
-                      (index) {
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 2),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.circle, size: 8, color: Colors.green),
-                          const SizedBox(width: 8),
-                          Expanded(
-                              child:
-                              Text(widget.recipe['ingredients'][index] ?? '')),
-                        ],
-                      ),
-                    );
-                  }),
+              ...List.generate((widget.recipe['ingredients'] as List).length, (index) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.circle, size: 8, color: Colors.green),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(widget.recipe['ingredients'][index] ?? '')),
+                    ],
+                  ),
+                );
+              }),
 
             const Divider(height: 30),
 
-            // Шаги
+            // Инструкция
             const Text(
               "Инструкция:",
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -160,8 +196,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                         radius: 12,
                         backgroundColor: Colors.green[100],
                         child: Text("${index + 1}",
-                            style: const TextStyle(
-                                fontSize: 12, color: Colors.green)),
+                            style: const TextStyle(fontSize: 12, color: Colors.green)),
                       ),
                       const SizedBox(width: 10),
                       Expanded(child: Text(widget.recipe['steps'][index] ?? '')),
