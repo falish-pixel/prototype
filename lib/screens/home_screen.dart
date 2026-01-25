@@ -1,32 +1,54 @@
-import 'dart:io'; // Для работы с файлами
+import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart'; // Импорт пакета
-import 'package:firebase_auth/firebase_auth.dart'; // !!! Импорт для выхода из аккаунта
+import 'package:image_picker/image_picker.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'scan_screen.dart';
 
-class HomeScreen extends StatelessWidget {
+// 1. Меняем на StatefulWidget
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
   @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  // Получаем текущего пользователя
+  User? user = FirebaseAuth.instance.currentUser;
+
+  // Функция для обновления данных пользователя при возврате
+  void _refreshUser() async {
+    await user?.reload(); // Обновляем данные с сервера
+    setState(() {
+      user = FirebaseAuth.instance.currentUser; // Перечитываем объект
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    // Если имя не задано, используем "Шеф"
+    String displayName = user?.displayName ?? "Шеф";
+    if (displayName.isEmpty) displayName = "Шеф";
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Привет, Шеф!'),
+        // 2. Используем имя переменной
+        title: Text('Привет, $displayName!'),
         actions: [
-          // !!! Кнопка Выхода !!!
           IconButton(
             icon: const Icon(Icons.logout),
             tooltip: "Выйти из аккаунта",
             onPressed: () async {
-              // Вызываем выход из Firebase
               await FirebaseAuth.instance.signOut();
-              // Благодаря StreamBuilder в main.dart приложение само переключится на LoginScreen
             },
           ),
-          // Кнопка Настроек
           IconButton(
             icon: const Icon(Icons.settings),
-            onPressed: () => Navigator.pushNamed(context, '/settings'),
+            onPressed: () async {
+              // 3. Ждем возврата из настроек и обновляем экран
+              await Navigator.pushNamed(context, '/settings');
+              _refreshUser();
+            },
           ),
         ],
       ),
@@ -49,7 +71,7 @@ class HomeScreen extends StatelessWidget {
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showPickerOptions(context), // Вызов выбора
+        onPressed: () => _showPickerOptions(context),
         label: const Text("Сканировать"),
         icon: const Icon(Icons.camera_alt),
         backgroundColor: Colors.green,
@@ -58,8 +80,9 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  // Меню выбора: Камера или Галерея
+  // ... (методы _showPickerOptions и _pickImage остаются без изменений)
   void _showPickerOptions(BuildContext context) {
+    // ... ваш код ...
     showModalBottomSheet(
       context: context,
       builder: (BuildContext bc) {
@@ -88,13 +111,12 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  // Логика получения фото и переход
   Future<void> _pickImage(BuildContext context, ImageSource source) async {
+    // ... ваш код ...
     final ImagePicker picker = ImagePicker();
     final XFile? image = await picker.pickImage(source: source);
 
     if (image != null) {
-      // Переходим на экран AI и передаем путь к фото
       Navigator.push(
         context,
         MaterialPageRoute(
