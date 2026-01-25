@@ -71,6 +71,11 @@ class LanguageService {
       'kk': 'Суретке түсіріңіз немесе тізімді жазыңыз',
       'en': 'Take a photo or enter a list',
     },
+    'dark_mode': {
+      'ru': 'Темная тема',
+      'kk': 'Күңгірт режим',
+      'en': 'Dark Mode'
+    },
     'scan_button': {'ru': 'Сканировать', 'kk': 'Сканерлеу', 'en': 'Scan'},
     'manual_input': {'ru': 'Ввести вручную', 'kk': 'Қолмен енгізу', 'en': 'Enter manually'},
     'gallery': {'ru': 'Галерея', 'kk': 'Галерея', 'en': 'Gallery'},

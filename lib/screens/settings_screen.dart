@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/language_service.dart';
+import '../services/theme_service.dart'; // <--- 1. Добавлен импорт
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -41,7 +42,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       appBar: AppBar(title: Text(LanguageService.tr('settings'))),
       body: ListView(
         children: [
-          // ЯЗЫК
+          // === ЯЗЫК ===
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
             child: Text(LanguageService.tr('language'),
@@ -70,18 +71,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
           ),
+
           const Divider(height: 30),
 
-          // АККАУНТ
+          // === ТЕМНАЯ ТЕМА (НОВОЕ) ===
+          SwitchListTile(
+            title: Text(LanguageService.tr('dark_mode')), // Используем ключ перевода
+            secondary: const Icon(Icons.dark_mode),
+            value: ThemeService.isDarkMode.value,
+            onChanged: (val) {
+              // 1. Сохраняем тему
+              ThemeService.toggleTheme(val);
+              // 2. Обновляем экран, чтобы переключатель сдвинулся
+              setState(() {});
+            },
+          ),
+
+          const Divider(height: 30),
+
+          // === АККАУНТ ===
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: Text(LanguageService.tr('account'), // <-- ИСПРАВЛЕНО
+            child: Text(LanguageService.tr('account'),
                 style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
           ),
           ListTile(
             leading: const Icon(Icons.person, color: Colors.green),
-            title: Text(LanguageService.tr('change_name')), // <-- ИСПРАВЛЕНО
-            subtitle: Text(LanguageService.tr('change_name_hint')), // <-- ИСПРАВЛЕНО
+            title: Text(LanguageService.tr('change_name')),
+            subtitle: Text(LanguageService.tr('change_name_hint')),
             trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
             onTap: () async {
               final result = await Navigator.pushNamed(context, '/profile');
@@ -92,14 +109,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const Divider(height: 30),
 
-          // ПИЩЕВЫЕ ОГРАНИЧЕНИЯ
+          // === ПИЩЕВЫЕ ОГРАНИЧЕНИЯ ===
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: Text(LanguageService.tr('food_restrictions'), // <-- ИСПРАВЛЕНО
+            child: Text(LanguageService.tr('food_restrictions'),
                 style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
           ),
           SwitchListTile(
-            title: Text(LanguageService.tr('gluten_free')), // <-- ИСПРАВЛЕНО
+            title: Text(LanguageService.tr('gluten_free')),
             secondary: const Icon(Icons.bakery_dining),
             value: _glutenFree,
             onChanged: (val) {
@@ -108,7 +125,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             },
           ),
           SwitchListTile(
-            title: Text(LanguageService.tr('lactose_free')), // <-- ИСПРАВЛЕНО
+            title: Text(LanguageService.tr('lactose_free')),
             secondary: const Icon(Icons.local_drink),
             value: _lactoseFree,
             onChanged: (val) {
@@ -117,7 +134,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             },
           ),
           SwitchListTile(
-            title: Text(LanguageService.tr('nut_allergy')), // <-- ИСПРАВЛЕНО
+            title: Text(LanguageService.tr('nut_allergy')),
             secondary: const Icon(Icons.nature_people),
             value: _nutAllergy,
             onChanged: (val) {
