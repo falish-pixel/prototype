@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'recipe_detail_screen.dart';
+import '../services/language_service.dart'; // Импорт сервиса языков
 
 class AiRecipesScreen extends StatefulWidget {
   final String? imagePath;
@@ -20,14 +21,14 @@ class AiRecipesScreen extends StatefulWidget {
 }
 
 class _AiRecipesScreenState extends State<AiRecipesScreen> {
-  // ⚠️ РЕКОМЕНДАЦИЯ: Храни API ключ в .env или Remote Config
+  // ⚠️ API KEY (лучше хранить в .env)
   final String apiKey = '123456789';
 
   List<Map<String, dynamic>> recipes = [];
   bool isLoading = true;
   String? errorMessage;
 
-  // Здесь мы храним текущий список продуктов (от AI или от пользователя)
+  // Текущий список продуктов
   String _currentIngredients = "";
 
   @override
@@ -52,28 +53,30 @@ class _AiRecipesScreenState extends State<AiRecipesScreen> {
       bool nutAllergy = prefs.getBool('nutAllergy') ?? false;
 
       List<String> restrictions = [];
-      if (glutenFree) restrictions.add("БЕЗ ГЛЮТЕНА");
-      if (lactoseFree) restrictions.add("БЕЗ ЛАКТОЗЫ");
-      if (nutAllergy) restrictions.add("БЕЗ ОРЕХОВ");
+      if (glutenFree) restrictions.add("БЕЗ ГЛЮТЕНА/GLUTEN FREE");
+      if (lactoseFree) restrictions.add("БЕЗ ЛАКТОЗЫ/LACTOSE FREE");
+      if (nutAllergy) restrictions.add("БЕЗ ОРЕХОВ/NUT FREE");
 
       String restrictionText = restrictions.isEmpty
           ? ""
           : "УЧТИ ОГРАНИЧЕНИЯ: ${restrictions.join(", ")}.";
+
+      // !!! ПОЛУЧАЕМ ИНСТРУКЦИЮ ЯЗЫКА !!!
+      String langInstruction = LanguageService.tr('prompt_lang');
 
       final model = GenerativeModel(
         model: 'gemini-2.5-flash',
         apiKey: apiKey,
       );
 
-      // !!! ГЛАВНОЕ ИЗМЕНЕНИЕ: Просим вернуть и ингредиенты, и рецепты !!!
       final structurePrompt = '''
       Ответ верни СТРОГО в формате JSON объекта (без markdown ```json).
-      Структура ответа должна быть такой:
+      Структура ответа:
       {
         "detected_ingredients": ["продукт 1", "продукт 2"], 
         "recipes": [
            {
-             "name": "Название блюда",
+             "name": "Название",
              "time": "Время",
              "kcal": "Ккал",
              "ingredients": ["список", "продуктов"],
@@ -85,16 +88,13 @@ class _AiRecipesScreenState extends State<AiRecipesScreen> {
 
       GenerateContentResponse response;
 
-      // Логика:
-      // 1. Если это первый запуск И есть фото -> отправляем фото, чтобы AI сам нашел продукты.
-      // 2. Если пользователь уже отредактировал список (_currentIngredients не пуст и это не первый авто-анализ) -> отправляем только текст.
-
       if (isInitial && widget.imagePath != null) {
-        // --- ПЕРВИЧНЫЙ АНАЛИЗ ФОТО ---
+        // --- ФОТО ---
         final imageBytes = await File(widget.imagePath!).readAsBytes();
         final prompt = '''
         Посмотри на это фото. Составь список ВСЕХ увиденных съедобных продуктов.
         $restrictionText
+        $langInstruction
         На основе этих продуктов предложи 3 рецепта.
         $structurePrompt
         ''';
@@ -103,12 +103,13 @@ class _AiRecipesScreenState extends State<AiRecipesScreen> {
           Content.multi([TextPart(prompt), DataPart('image/jpeg', imageBytes)])
         ]);
       } else {
-        // --- ПОИСК ПО ТЕКСТОВОМУ СПИСКУ (ПОСЛЕ РЕДАКТИРОВАНИЯ) ---
+        // --- ТЕКСТ ---
         final prompt = '''
         Я буду готовить из следующих продуктов: $_currentIngredients.
         $restrictionText
-        Предложи 3 рецепта строго из этого списка (можно добавить базовые специи/масло/воду).
-        В поле "detected_ingredients" просто верни мой список продуктов обратно.
+        $langInstruction
+        Предложи 3 рецепта строго из этого списка.
+        В поле "detected_ingredients" верни список продуктов на том же языке.
         $structurePrompt
         ''';
 
@@ -121,7 +122,6 @@ class _AiRecipesScreenState extends State<AiRecipesScreen> {
             .replaceAll('```', '')
             .trim();
 
-        // Очистка от мусора до и после JSON
         int startIndex = cleanJson.indexOf('{');
         int endIndex = cleanJson.lastIndexOf('}');
         if (startIndex != -1 && endIndex != -1) {
@@ -130,17 +130,15 @@ class _AiRecipesScreenState extends State<AiRecipesScreen> {
 
         final data = jsonDecode(cleanJson);
 
-        // 1. Достаем список продуктов
         List<dynamic> rawIngredients = data['detected_ingredients'] ?? [];
         List<String> newIngredientsList = rawIngredients.map((e) => e.toString()).toList();
 
-        // 2. Достаем рецепты
         List<dynamic> rawRecipes = data['recipes'] ?? [];
         List<Map<String, dynamic>> newRecipes = List<Map<String, dynamic>>.from(rawRecipes);
 
         if (mounted) {
           setState(() {
-            // Если это был анализ фото, обновляем наш список тем, что увидел AI
+            // Если анализировали фото, обновляем список продуктов
             if (isInitial && widget.imagePath != null) {
               _currentIngredients = newIngredientsList.join(", ");
             }
@@ -149,61 +147,46 @@ class _AiRecipesScreenState extends State<AiRecipesScreen> {
           });
         }
       } else {
-        throw Exception("Пустой ответ от AI");
+        throw Exception("Empty response");
       }
     } catch (e) {
       print("Ошибка: $e");
       if (mounted) {
         setState(() {
           isLoading = false;
-          errorMessage = "Ошибка: $e";
+          errorMessage = "Error: $e";
         });
       }
     }
   }
 
-  // Диалог теперь показывает текущие продукты
   void _showEditDialog() {
-    // Вставляем текущий список в поле ввода
     final TextEditingController controller = TextEditingController(text: _currentIngredients);
 
     showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text("Продукты"),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text("AI увидел это. Отредактируйте список:", style: TextStyle(fontSize: 12, color: Colors.grey)),
-              const SizedBox(height: 10),
-              TextField(
-                controller: controller,
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  labelText: "Список продуктов",
-                ),
-                maxLines: 4, // Побольше места
-              ),
-            ],
+          title: Text(LanguageService.tr('products_label')), // "Продукты:"
+          content: TextField(
+            controller: controller,
+            decoration: const InputDecoration(border: OutlineInputBorder()),
+            maxLines: 4,
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text("Отмена"),
+              child: const Text("Cancel"), // Можно добавить в словарь 'cancel'
             ),
             ElevatedButton(
               onPressed: () {
                 Navigator.pop(context);
                 setState(() {
-                  _currentIngredients = controller.text; // Сохраняем правки пользователя
+                  _currentIngredients = controller.text;
                 });
-                // Запускаем поиск заново, но теперь isInitial = false,
-                // чтобы использовать текст пользователя, а не анализировать фото снова
                 _generateRecipes(isInitial: false);
               },
-              child: const Text("Обновить"),
+              child: Text(LanguageService.tr('update')), // "Обновить"
             ),
           ],
         );
@@ -214,10 +197,9 @@ class _AiRecipesScreenState extends State<AiRecipesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Результат")),
+      appBar: AppBar(title: Text(LanguageService.tr('results_title'))), // "Результат"
       body: Column(
         children: [
-          // Блок с фото и списком
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
@@ -236,14 +218,13 @@ class _AiRecipesScreenState extends State<AiRecipesScreen> {
                     ),
                   ),
 
-                // Показываем, какие продукты мы сейчас используем
                 Row(
                   children: [
                     Expanded(
                       child: Text(
                         _currentIngredients.isEmpty
-                            ? "Определяю продукты..."
-                            : "Продукты: $_currentIngredients",
+                            ? "..."
+                            : "${LanguageService.tr('products_label')} $_currentIngredients",
                         style: const TextStyle(fontWeight: FontWeight.w500),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
@@ -252,7 +233,7 @@ class _AiRecipesScreenState extends State<AiRecipesScreen> {
                     IconButton(
                       icon: const Icon(Icons.edit, color: Colors.green),
                       onPressed: _showEditDialog,
-                      tooltip: "Изменить состав",
+                      tooltip: LanguageService.tr('edit'), // "Изменить"
                     )
                   ],
                 ),
@@ -276,10 +257,10 @@ class _AiRecipesScreenState extends State<AiRecipesScreen> {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
-        children: const [
-          CircularProgressIndicator(color: Colors.green),
-          SizedBox(height: 20),
-          Text("Шеф думает...", style: TextStyle(color: Colors.grey)),
+        children: [
+          const CircularProgressIndicator(color: Colors.green),
+          const SizedBox(height: 20),
+          Text(LanguageService.tr('chef_thinking'), style: const TextStyle(color: Colors.grey)),
         ],
       ),
     );
@@ -293,10 +274,10 @@ class _AiRecipesScreenState extends State<AiRecipesScreen> {
           children: [
             const Icon(Icons.error, color: Colors.red, size: 50),
             const SizedBox(height: 10),
-            Text(errorMessage ?? "Ошибка"),
+            Text(errorMessage ?? "Error"),
             ElevatedButton(
                 onPressed: () => _generateRecipes(isInitial: false),
-                child: const Text("Повторить")
+                child: const Text("Retry")
             )
           ],
         ),
@@ -306,7 +287,7 @@ class _AiRecipesScreenState extends State<AiRecipesScreen> {
 
   Widget _buildRecipeList() {
     if (recipes.isEmpty) {
-      return const Center(child: Text("Не удалось найти рецепты из этих продуктов"));
+      return const Center(child: Text("No recipes found"));
     }
 
     return ListView.builder(
@@ -319,7 +300,7 @@ class _AiRecipesScreenState extends State<AiRecipesScreen> {
           margin: const EdgeInsets.only(bottom: 15),
           child: ListTile(
             leading: const Icon(Icons.restaurant_menu, color: Colors.green),
-            title: Text(recipe['name'] ?? 'Без названия'),
+            title: Text(recipe['name'] ?? ''),
             subtitle: Text("${recipe['time']} • ${recipe['kcal']}"),
             trailing: const Icon(Icons.arrow_forward_ios, size: 16),
             onTap: () {

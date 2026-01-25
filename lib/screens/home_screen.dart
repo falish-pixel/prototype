@@ -1,9 +1,9 @@
-// Файл: lib/screens/home_screen.dart
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'scan_screen.dart';
-import 'favorites_screen.dart'; // Не забудь создать этот файл, как мы обсуждали ранее
+import 'favorites_screen.dart';
+import '../services/language_service.dart'; // Импорт сервиса языков
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -14,29 +14,21 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
 
-  // Функция для обновления (оставляем её на всякий случай для настроек)
-  Future<void> _refreshUser() async {
-    await FirebaseAuth.instance.currentUser?.reload();
-    if (mounted) {
-      setState(() {});
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        // StreamBuilder автоматически следит за изменениями пользователя (имени, фото)
         title: StreamBuilder<User?>(
           stream: FirebaseAuth.instance.userChanges(),
           builder: (context, snapshot) {
             final user = snapshot.data;
-            // Логика получения имени
             final displayName = (user?.displayName != null && user!.displayName!.isNotEmpty)
                 ? user!.displayName!
-                : "Шеф";
+                : LanguageService.tr('chef'); // "Шеф"
 
-            return Text('Привет, $displayName!');
+            // "Привет, Имя!" - тут можно усложнить для мультиязычности,
+            // но пока оставим простую склейку, или добавьте ключ 'hello' в словарь
+            return Text("${LanguageService.tr('hello')}, $displayName!");
           },
         ),
         actions: [
@@ -46,7 +38,7 @@ class _HomeScreenState extends State<HomeScreen> {
               await FirebaseAuth.instance.signOut();
             },
           ),
-          // --- НОВАЯ КНОПКА: ИЗБРАННОЕ ---
+          // Кнопка ИЗБРАННОЕ
           IconButton(
             icon: const Icon(Icons.favorite, color: Colors.redAccent),
             onPressed: () {
@@ -56,20 +48,14 @@ class _HomeScreenState extends State<HomeScreen> {
               );
             },
           ),
-          // -------------------------------
+          // Кнопка НАСТРОЙКИ
           IconButton(
             icon: const Icon(Icons.settings),
             onPressed: () async {
-              // 1. Ждем возврата из настроек
               final result = await Navigator.pushNamed(context, '/settings');
-
-              // 2. Если настройки передали true, значит данные изменились
               if (result == true) {
-                await FirebaseAuth.instance.currentUser?.reload(); // На всякий случай еще раз
-                if (mounted) setState(() {}); // Принудительно перерисовываем экран
-              } else {
-                // Даже если false, на всякий случай обновим (не повредит)
-                await _refreshUser();
+                await FirebaseAuth.instance.currentUser?.reload();
+                if (mounted) setState(() {});
               }
             },
           ),
@@ -79,6 +65,7 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            // Статический круг калорий (пока без сложной логики)
             Container(
               width: 200, height: 200,
               decoration: BoxDecoration(
@@ -86,16 +73,21 @@ class _HomeScreenState extends State<HomeScreen> {
                   border: Border.all(color: Colors.green, width: 8)
               ),
               child: const Center(
-                  child: Text("1250 ккал", style: TextStyle(fontSize: 24))
+                  child: Text("1250 kcal", style: TextStyle(fontSize: 24))
               ),
             ),
             const SizedBox(height: 40),
-            const Text("Что в холодильнике?", style: TextStyle(fontSize: 20)),
-            const Padding(
-              padding: EdgeInsets.all(8.0),
+
+            // Заголовок "Что в холодильнике?"
+            Text(LanguageService.tr('what_in_fridge'),
+                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              // Подсказка "Сделай фото..."
               child: Text(
-                  "Сделай фото продуктов или введи список вручную, чтобы получить рецепт",
-                  style: TextStyle(color: Colors.grey),
+                  LanguageService.tr('scan_hint'),
+                  style: const TextStyle(color: Colors.grey),
                   textAlign: TextAlign.center
               ),
             ),
@@ -104,7 +96,8 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showPickerOptions(context),
-        label: const Text("Сканировать"),
+        // Кнопка "Сканировать"
+        label: Text(LanguageService.tr('scan_button')),
         icon: const Icon(Icons.camera_alt),
         backgroundColor: Colors.green,
       ),
@@ -119,28 +112,28 @@ class _HomeScreenState extends State<HomeScreen> {
         return SafeArea(
           child: Wrap(
             children: <Widget>[
-              // --- ВВОД ВРУЧНУЮ ---
+              // Ввести вручную
               ListTile(
                 leading: const Icon(Icons.edit, color: Colors.orange),
-                title: const Text('Ввести вручную'),
+                title: Text(LanguageService.tr('manual_input')),
                 onTap: () {
-                  Navigator.pop(context); // Закрываем меню
-                  _showManualInputDialog(context); // Открываем ввод текста
+                  Navigator.pop(context);
+                  _showManualInputDialog(context);
                 },
               ),
               const Divider(),
-              // --- ГАЛЕРЕЯ ---
+              // Галерея
               ListTile(
                   leading: const Icon(Icons.photo_library, color: Colors.blue),
-                  title: const Text('Галерея'),
+                  title: Text(LanguageService.tr('gallery')),
                   onTap: () {
                     Navigator.pop(context);
                     _pickImage(ImageSource.gallery);
                   }),
-              // --- КАМЕРА ---
+              // Камера
               ListTile(
                 leading: const Icon(Icons.photo_camera, color: Colors.green),
-                title: const Text('Камера'),
+                title: Text(LanguageService.tr('camera')),
                 onTap: () {
                   Navigator.pop(context);
                   _pickImage(ImageSource.camera);
@@ -153,19 +146,18 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // --- ДИАЛОГ ДЛЯ РУЧНОГО ВВОДА ---
   void _showManualInputDialog(BuildContext context) {
     final TextEditingController controller = TextEditingController();
-
     showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text("Что есть в холодильнике?"),
+          // Для заголовка используем "Что в холодильнике?" или добавьте ключ 'manual_title'
+          title: Text(LanguageService.tr('what_in_fridge')),
           content: TextField(
             controller: controller,
             decoration: const InputDecoration(
-              hintText: "Например: курица, рис, помидоры",
+              hintText: "...", // Можно добавить ключ 'hint_text'
               border: OutlineInputBorder(),
             ),
             maxLines: 3,
@@ -173,25 +165,23 @@ class _HomeScreenState extends State<HomeScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text("Отмена"),
+              child: const Text("Cancel"),
             ),
             ElevatedButton(
               onPressed: () {
                 if (controller.text.isNotEmpty) {
-                  Navigator.pop(context); // Закрываем диалог
-                  // Переходим на экран рецептов с ТЕКСТОМ
+                  Navigator.pop(context);
                   Navigator.push(
                     context,
                     MaterialPageRoute(
                       builder: (context) => AiRecipesScreen(
                         ingredientsInput: controller.text,
-                        // imagePath не передаем, он будет null
                       ),
                     ),
                   );
                 }
               },
-              child: const Text("Искать рецепты"),
+              child: const Text("Search"),
             ),
           ],
         );
