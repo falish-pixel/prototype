@@ -1,6 +1,7 @@
 import 'dart:io'; // Для работы с файлами
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart'; // Импорт пакета
+import 'package:firebase_auth/firebase_auth.dart'; // !!! Импорт для выхода из аккаунта
 import 'scan_screen.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -12,6 +13,17 @@ class HomeScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Привет, Шеф!'),
         actions: [
+          // !!! Кнопка Выхода !!!
+          IconButton(
+            icon: const Icon(Icons.logout),
+            tooltip: "Выйти из аккаунта",
+            onPressed: () async {
+              // Вызываем выход из Firebase
+              await FirebaseAuth.instance.signOut();
+              // Благодаря StreamBuilder в main.dart приложение само переключится на LoginScreen
+            },
+          ),
+          // Кнопка Настроек
           IconButton(
             icon: const Icon(Icons.settings),
             onPressed: () => Navigator.pushNamed(context, '/settings'),
