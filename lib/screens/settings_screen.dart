@@ -1,8 +1,7 @@
-// Файл: lib/screens/settings_screen.dart
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/language_service.dart';
-import '../services/theme_service.dart'; // <--- 1. Добавлен импорт
+import '../services/theme_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -15,6 +14,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _glutenFree = false;
   bool _lactoseFree = false;
   bool _nutAllergy = false;
+  // Новые переменные для диеты
+  bool _isVegan = false;
+  bool _isVegetarian = false;
 
   @override
   void initState() {
@@ -28,6 +30,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _glutenFree = prefs.getBool('glutenFree') ?? false;
       _lactoseFree = prefs.getBool('lactoseFree') ?? false;
       _nutAllergy = prefs.getBool('nutAllergy') ?? false;
+      _isVegan = prefs.getBool('isVegan') ?? false;
+      _isVegetarian = prefs.getBool('isVegetarian') ?? false;
     });
   }
 
@@ -42,7 +46,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       appBar: AppBar(title: Text(LanguageService.tr('settings'))),
       body: ListView(
         children: [
-          // === ЯЗЫК ===
+          // ЯЗЫК
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
             child: Text(LanguageService.tr('language'),
@@ -74,42 +78,55 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           const Divider(height: 30),
 
-          // === ТЕМНАЯ ТЕМА (НОВОЕ) ===
+          // ТЕМА
           SwitchListTile(
-            title: Text(LanguageService.tr('dark_mode')), // Используем ключ перевода
+            title: Text(LanguageService.tr('dark_mode')),
             secondary: const Icon(Icons.dark_mode),
             value: ThemeService.isDarkMode.value,
             onChanged: (val) {
-              // 1. Сохраняем тему
               ThemeService.toggleTheme(val);
-              // 2. Обновляем экран, чтобы переключатель сдвинулся
               setState(() {});
             },
           ),
 
           const Divider(height: 30),
 
-          // === АККАУНТ ===
+          // ДИЕТА (НОВОЕ)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: Text(LanguageService.tr('account'),
+            child: Text(LanguageService.tr('diet'), // Добавьте ключ 'diet' в переводы
                 style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
           ),
-          ListTile(
-            leading: const Icon(Icons.person, color: Colors.green),
-            title: Text(LanguageService.tr('change_name')),
-            subtitle: Text(LanguageService.tr('change_name_hint')),
-            trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
-            onTap: () async {
-              final result = await Navigator.pushNamed(context, '/profile');
-              if (result == true && context.mounted) {
-                Navigator.pop(context, true);
-              }
+          SwitchListTile(
+            title: Text(LanguageService.tr('vegan')), // 'vegan'
+            secondary: const Icon(Icons.grass, color: Colors.green),
+            value: _isVegan,
+            onChanged: (val) {
+              setState(() {
+                _isVegan = val;
+                if (val) _isVegetarian = false; // Взаимоисключение
+              });
+              _saveSetting('isVegan', val);
+              _saveSetting('isVegetarian', false);
             },
           ),
+          SwitchListTile(
+            title: Text(LanguageService.tr('vegetarian')), // 'vegetarian'
+            secondary: const Icon(Icons.egg_alt, color: Colors.orange),
+            value: _isVegetarian,
+            onChanged: (val) {
+              setState(() {
+                _isVegetarian = val;
+                if (val) _isVegan = false; // Взаимоисключение
+              });
+              _saveSetting('isVegetarian', val);
+              _saveSetting('isVegan', false);
+            },
+          ),
+
           const Divider(height: 30),
 
-          // === ПИЩЕВЫЕ ОГРАНИЧЕНИЯ ===
+          // ПИЩЕВЫЕ ОГРАНИЧЕНИЯ
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
             child: Text(LanguageService.tr('food_restrictions'),

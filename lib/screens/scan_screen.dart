@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'recipe_detail_screen.dart';
 import '../services/language_service.dart';
 
@@ -22,8 +21,8 @@ class AiRecipesScreen extends StatefulWidget {
 }
 
 class _AiRecipesScreenState extends State<AiRecipesScreen> {
-  // Твой API ключ Gemini
-  final String apiKey = 'AIzaSyC83wuZ02C_fY_RMf43Lgb7OBC3CcrT4B4';
+  // Ваш API ключ (лучше перенести в .env, но пока оставляем здесь)
+  final String apiKey = 'AIzaSyCh9p2zlarnCsPaMDAW-5pYPb-XWB1pMu0';
 
   List<Map<String, dynamic>> recipes = [];
   bool isLoading = true;
@@ -40,6 +39,7 @@ class _AiRecipesScreenState extends State<AiRecipesScreen> {
   }
 
   Future<void> _generateRecipes({bool isInitial = false}) async {
+    // ... (логика генерации осталась без изменений)
     setState(() {
       isLoading = true;
       errorMessage = null;
@@ -50,22 +50,27 @@ class _AiRecipesScreenState extends State<AiRecipesScreen> {
       bool glutenFree = prefs.getBool('glutenFree') ?? false;
       bool lactoseFree = prefs.getBool('lactoseFree') ?? false;
       bool nutAllergy = prefs.getBool('nutAllergy') ?? false;
+      bool isVegan = prefs.getBool('isVegan') ?? false;
+      bool isVegetarian = prefs.getBool('isVegetarian') ?? false;
 
       List<String> restrictions = [];
       if (glutenFree) restrictions.add("БЕЗ ГЛЮТЕНА/GLUTEN FREE");
       if (lactoseFree) restrictions.add("БЕЗ ЛАКТОЗЫ/LACTOSE FREE");
       if (nutAllergy) restrictions.add("БЕЗ ОРЕХОВ/NUT FREE");
 
-      String restrictionText = restrictions.isEmpty
-          ? ""
-          : "УЧТИ ОГРАНИЧЕНИЯ: ${restrictions.join(", ")}.";
+      String dietText = "";
+      if (isVegan) {
+        dietText = LanguageService.tr('prompt_vegan');
+      } else if (isVegetarian) {
+        dietText = LanguageService.tr('prompt_vegetarian');
+      }
 
+      String restrictionText = restrictions.isEmpty
+          ? dietText
+          : "$dietText УЧТИ ДОПОЛНИТЕЛЬНЫЕ ОГРАНИЧЕНИЯ: ${restrictions.join(", ")}.";
       String langInstruction = LanguageService.tr('prompt_lang');
 
-      final model = GenerativeModel(
-        model: 'gemini-2.5-flash',
-        apiKey: apiKey,
-      );
+      final model = GenerativeModel(model: 'gemini-2.5-flash', apiKey: apiKey);
 
       final structurePrompt = '''
       Ответ верни СТРОГО в формате JSON объекта (без markdown ```json).
@@ -95,7 +100,6 @@ class _AiRecipesScreenState extends State<AiRecipesScreen> {
         На основе этих продуктов предложи 3 рецепта.
         $structurePrompt
         ''';
-
         response = await model.generateContent([
           Content.multi([TextPart(prompt), DataPart('image/jpeg', imageBytes)])
         ]);
@@ -108,7 +112,6 @@ class _AiRecipesScreenState extends State<AiRecipesScreen> {
         В поле "detected_ingredients" верни список продуктов на том же языке.
         $structurePrompt
         ''';
-
         response = await model.generateContent([Content.text(prompt)]);
       }
 
@@ -117,18 +120,15 @@ class _AiRecipesScreenState extends State<AiRecipesScreen> {
             .replaceAll('```json', '')
             .replaceAll('```', '')
             .trim();
-
         int startIndex = cleanJson.indexOf('{');
         int endIndex = cleanJson.lastIndexOf('}');
         if (startIndex != -1 && endIndex != -1) {
           cleanJson = cleanJson.substring(startIndex, endIndex + 1);
         }
-
         final data = jsonDecode(cleanJson);
 
         List<dynamic> rawIngredients = data['detected_ingredients'] ?? [];
         List<String> newIngredientsList = rawIngredients.map((e) => e.toString()).toList();
-
         List<dynamic> rawRecipes = data['recipes'] ?? [];
         List<Map<String, dynamic>> newRecipes = List<Map<String, dynamic>>.from(rawRecipes);
 
@@ -156,7 +156,6 @@ class _AiRecipesScreenState extends State<AiRecipesScreen> {
 
   void _showEditDialog() {
     final TextEditingController controller = TextEditingController(text: _currentIngredients);
-
     showDialog(
       context: context,
       builder: (context) {
@@ -200,15 +199,20 @@ class _AiRecipesScreenState extends State<AiRecipesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Проверка темы для адаптации цветов
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      appBar: AppBar(title: Text(LanguageService.tr('results_title'))),
+      appBar: AppBar(
+        title: Text(LanguageService.tr('results_title')),
+      ),
       body: Column(
         children: [
+          // Верхняя панель: Фото и Список
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
+            // ИСПРАВЛЕНИЕ: Адаптивный цвет фона
             color: isDark ? Colors.green.withOpacity(0.15) : Colors.green[50],
             child: Column(
               children: [
@@ -223,6 +227,7 @@ class _AiRecipesScreenState extends State<AiRecipesScreen> {
                       ),
                     ),
                   ),
+
                 Row(
                   children: [
                     Expanded(
@@ -245,6 +250,8 @@ class _AiRecipesScreenState extends State<AiRecipesScreen> {
               ],
             ),
           ),
+
+          // Список рецептов
           Expanded(
             child: isLoading
                 ? _buildLoading()
@@ -264,7 +271,10 @@ class _AiRecipesScreenState extends State<AiRecipesScreen> {
         children: [
           const CircularProgressIndicator(color: Colors.green),
           const SizedBox(height: 20),
-          Text(LanguageService.tr('chef_thinking'), style: const TextStyle(color: Colors.grey)),
+          Text(
+              LanguageService.tr('chef_thinking'),
+              style: const TextStyle(color: Colors.grey)
+          ),
         ],
       ),
     );
@@ -299,35 +309,13 @@ class _AiRecipesScreenState extends State<AiRecipesScreen> {
       itemCount: recipes.length,
       itemBuilder: (context, index) {
         final recipe = recipes[index];
-        final name = recipe['name'] ?? 'Food';
-
-        // Кодируем название
-        final String encodedName = Uri.encodeComponent(name);
-        // Запрашиваем картинку с текстом
-        // Тестовая картинка (зеленый квадрат с текстом Food)
-        final imageUrl = 'https://placehold.co/400x300/4CAF50/FFFFFF.png?text=$encodedName';
-
         return Card(
+          // Карточка сама адаптируется под тему (темная в Dark Mode)
           elevation: 4,
           margin: const EdgeInsets.only(bottom: 15),
           child: ListTile(
-            contentPadding: const EdgeInsets.all(8),
-            leading: ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: CachedNetworkImage(
-                imageUrl: imageUrl,
-                width: 60, height: 60,
-                fit: BoxFit.cover,
-                placeholder: (context, url) => Container(
-                    width: 60, height: 60,
-                    color: Colors.green[100],
-                    child: const CircularProgressIndicator(strokeWidth: 2)
-                ),
-                errorWidget: (context, url, error) =>
-                const Icon(Icons.restaurant_menu, size: 40, color: Colors.green),
-              ),
-            ),
-            title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
+            leading: const Icon(Icons.restaurant_menu, color: Colors.green),
+            title: Text(recipe['name'] ?? ''),
             subtitle: Text("${recipe['time']} • ${recipe['kcal']}"),
             trailing: const Icon(Icons.arrow_forward_ios, size: 16),
             onTap: () {
