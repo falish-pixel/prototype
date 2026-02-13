@@ -11,6 +11,8 @@ import 'favorites_screen.dart';
 import '../services/language_service.dart';
 import '../services/calorie_service.dart';
 
+import '../services/user_service.dart';
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -34,14 +36,20 @@ class _HomeScreenState extends State<HomeScreen> {
         elevation: 0,
         backgroundColor: cardColor,
         surfaceTintColor: Colors.transparent,
-        title: StreamBuilder<User?>(
-          stream: FirebaseAuth.instance.userChanges(),
+        title: StreamBuilder<DocumentSnapshot>(
+          stream: UserService.getUserStream(), // Берем данные из Firestore
           builder: (context, snapshot) {
-            final user = snapshot.data;
-            // Исправленная логика проверки имени (убраны лишние !)
-            String displayName = LanguageService.tr('chef');
-            if (user != null && user.displayName != null && user.displayName!.isNotEmpty) {
-              displayName = user.displayName!;
+            String displayName = LanguageService.tr('chef'); // Дефолт
+
+            if (snapshot.hasData && snapshot.data!.exists) {
+              final data = snapshot.data!.data() as Map<String, dynamic>;
+              // Берем имя из базы, если оно там есть
+              if (data['displayName'] != null) {
+                displayName = data['displayName'];
+              }
+            } else if (FirebaseAuth.instance.currentUser?.displayName != null) {
+              // Если в базе нет, берем из Auth
+              displayName = FirebaseAuth.instance.currentUser!.displayName!;
             }
 
             return Column(
@@ -53,11 +61,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 Text(
                   "$displayName!",
-                  style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: isDark ? Colors.white : Colors.black87
-                  ),
+                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                 ),
               ],
             );
@@ -76,10 +80,38 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           // Кнопка НАСТРОЙКИ
           IconButton(
-            icon: Icon(Icons.settings_rounded, color: isDark ? Colors.white70 : Colors.black54),
+            icon: const Icon(Icons.settings),
             onPressed: () async {
-              await Navigator.pushNamed(context, '/settings');
-              if (mounted) setState(() {});
+              // 1. Переходим и ЖДЕМ возврата (await)
+              final result = await Navigator.pushNamed(context, '/settings');
+
+              // 2. Если мы вернулись и result == true (значит имя меняли)
+              if (result == true) {
+                // Пытаемся сделать reload тут, обернув его в пустой catch
+                try {
+                  await FirebaseAuth.instance.currentUser?.reload();
+                } catch (_) {
+                  // Даже если тут упадет ошибка Pigeon, мы её проигнорируем
+                }
+
+                // 3. ПРИНУДИТЕЛЬНО обновляем экран
+                if (mounted) setState(() {});
+              }
+            },
+          ),
+          // Кнопка ПРОФИЛЯ (вставлять сюда)
+          IconButton(
+            icon: const Icon(Icons.person),
+            onPressed: () async {
+              // 1. Ждем, пока пользователь закроет экран профиля
+              // Мы добавили await, чтобы код ниже выполнился только ПОСЛЕ возвращения
+              final result = await Navigator.pushNamed(context, '/profile');
+
+              // 2. Если профиль вернул true (значит имя было сохранено)
+              if (result == true) {
+                // Вызываем setState, чтобы HomeScreen перерисовал заголовок с новым именем
+                setState(() {});
+              }
             },
           ),
           // Кнопка ВЫХОД

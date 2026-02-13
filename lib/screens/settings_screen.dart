@@ -73,6 +73,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
       appBar: AppBar(title: Text(LanguageService.tr('settings'))),
       body: ListView(
         children: [
+          // === НОВЫЙ БЛОК: АККАУНТ ===
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: Text(LanguageService.tr('account'), // "Аккаунт"
+                style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+          ),
+          ListTile(
+            leading: const Icon(Icons.person, color: Colors.blue),
+            title: Text(LanguageService.tr('change_name')), // "Изменить имя"
+            subtitle: Text(LanguageService.tr('change_name_hint')), // "Настройте, как к вам обращаться"
+            trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+            onTap: () async {
+              // Переходим на экран профиля
+              await Navigator.pushNamed(context, '/profile');
+              // Когда вернемся, обновляем UI (если вдруг что-то поменялось)
+              setState(() {});
+            },
+          ),
+          const Divider(height: 30),
           // --- БЛОК ЦЕЛИ ---
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
