@@ -206,5 +206,11 @@ class LanguageService {
       'kk': 'Лимит!',
       'en': 'Limit!'
     },
+    // === МАКРОСЫ (БЖУ) ===
+    'macros': {'ru': 'БЖУ на порцию', 'kk': 'БМК (Бір үлес)', 'en': 'Macros per serving'},
+    'protein': {'ru': 'Белки', 'kk': 'Ақуыз', 'en': 'Protein'},
+    'fats': {'ru': 'Жиры', 'kk': 'Майлар', 'en': 'Fats'},
+    'carbs': {'ru': 'Углеводы', 'kk': 'Көмірсу', 'en': 'Carbs'},
+    'g': {'ru': 'г', 'kk': 'г', 'en': 'g'},
   };
 }

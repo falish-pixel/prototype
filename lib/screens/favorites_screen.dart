@@ -50,6 +50,11 @@ class FavoritesScreen extends StatelessWidget {
                 'name': data['name'] ?? 'No Name',
                 'time': data['time'] ?? '',
                 'kcal': data['kcal'] ?? '',
+                // === ДОБАВЛЯЕМ ЭТИ СТРОКИ ===
+                'protein': data['protein'] ?? 0,
+                'fats': data['fats'] ?? 0,
+                'carbs': data['carbs'] ?? 0,
+                // ============================
                 'ingredients': data['ingredients'] ?? [],
                 'steps': data['steps'] ?? [],
               };

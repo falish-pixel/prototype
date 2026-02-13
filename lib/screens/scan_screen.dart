@@ -22,7 +22,7 @@ class AiRecipesScreen extends StatefulWidget {
 
 class _AiRecipesScreenState extends State<AiRecipesScreen> {
   // Ваш API ключ (лучше перенести в .env, но пока оставляем здесь)
-  final String apiKey = '12312313213213213213132132132131321231321';
+  final String apiKey = 'AIzaSyAAv_EJ8G958d-YcJ5kOmb3wLFyOuDAxtA';
 
   List<Map<String, dynamic>> recipes = [];
   bool isLoading = true;
@@ -74,14 +74,18 @@ class _AiRecipesScreenState extends State<AiRecipesScreen> {
 
       final structurePrompt = '''
       Ответ верни СТРОГО в формате JSON объекта (без markdown ```json).
+      Убедись, что поля protein, fats, carbs содержат ТОЛЬКО ЧИСЛА (пример: 20, а не "20г").
       Структура ответа:
       {
         "detected_ingredients": ["продукт 1", "продукт 2"], 
         "recipes": [
            {
              "name": "Название блюда",
-             "time": "Время",
-             "kcal": "Ккал",
+             "time": "Время (например: 30 мин)",
+             "kcal": "Ккал (например: 400 ккал)",
+             "protein": 20,
+             "fats": 15,
+             "carbs": 50,
              "ingredients": ["список", "продуктов"],
              "steps": ["шаг 1", "шаг 2"]
            }

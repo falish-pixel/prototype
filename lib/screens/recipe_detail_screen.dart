@@ -4,7 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../services/language_service.dart';
-import '../services/calorie_service.dart'; // <--- Импорт сервиса калорий
+import '../services/calorie_service.dart';
 
 class RecipeDetailScreen extends StatefulWidget {
   final Map<String, dynamic> recipe;
@@ -62,29 +62,20 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
   }
 
   Future<void> _addToCalorieTracker() async {
-    // 1. Извлекаем строку с калориями, например "450 ккал"
     final String kcalString = widget.recipe['kcal']?.toString() ?? "0";
-
-    // 2. Удаляем все НЕ цифры (оставляем только 450)
     final String cleanString = kcalString.replaceAll(RegExp(r'[^0-9]'), '');
-
-    // 3. Преобразуем в число
     final int kcal = int.tryParse(cleanString) ?? 0;
 
     if (kcal > 0) {
-      // 4. Добавляем через сервис
       await CalorieService.addCalories(kcal);
-
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(LanguageService.tr('calories_added')), // "Калории добавлены!"
+              content: Text(LanguageService.tr('name_saved')), // Можно сделать отдельный ключ
               backgroundColor: Colors.green,
               behavior: SnackBarBehavior.floating,
             )
         );
-        // Опционально: можно вернуться на главный экран
-        // Navigator.pop(context);
       }
     }
   }
@@ -92,7 +83,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
   Future<void> _openYouTube() async {
     final recipeName = widget.recipe['name'];
     final query = Uri.encodeComponent("рецепт $recipeName");
-    final url = Uri.parse("https://www.youtube.com/results?search_query=$query");
+    final url = Uri.parse("[https://www.youtube.com/results?search_query=$query](https://www.youtube.com/results?search_query=$query)");
     try {
       if (await canLaunchUrl(url)) {
         await launchUrl(url, mode: LaunchMode.externalApplication);
@@ -111,6 +102,14 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
     final name = widget.recipe['name'] ?? 'Food';
     final int lockId = name.hashCode;
     final imageUrl = 'https://loremflickr.com/320/240/food,dish?lock=$lockId';
+
+    // Извлекаем БЖУ (безопасно, если их нет в старых рецептах)
+    final int protein = _parseInt(widget.recipe['protein']);
+    final int fats = _parseInt(widget.recipe['fats']);
+    final int carbs = _parseInt(widget.recipe['carbs']);
+
+    // Есть ли данные о БЖУ?
+    final bool hasMacros = protein > 0 || fats > 0 || carbs > 0;
 
     return Scaffold(
       appBar: AppBar(
@@ -131,7 +130,6 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Картинка с Hero эффектом (если бы он был в списке)
             CachedNetworkImage(
               imageUrl: imageUrl,
               width: double.infinity,
@@ -154,11 +152,10 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Название
                   Text(name, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 12),
 
-                  // Инфо-панель (Время и Калории)
+                  // Время и Калории
                   Row(
                     children: [
                       _buildInfoChip(Icons.timer_outlined, widget.recipe['time'] ?? 'N/A', Colors.blue),
@@ -169,13 +166,21 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
 
                   const SizedBox(height: 24),
 
-                  // КНОПКА "Я ПРИГОТОВИЛ ЭТО"
+                  // === НОВЫЙ БЛОК: БЖУ (МАКРОСЫ) ===
+                  if (hasMacros) ...[
+                    Text(LanguageService.tr('macros'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    const SizedBox(height: 12),
+                    _buildMacroNutrients(protein, fats, carbs),
+                    const SizedBox(height: 24),
+                  ],
+
+                  // Кнопка "Я приготовил это"
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
                       onPressed: _addToCalorieTracker,
                       icon: const Icon(Icons.check_circle_outline_rounded),
-                      label: Text(LanguageService.tr('cooked_this')), // "Я приготовил это"
+                      label: const Text("Я приготовил это"), // Можно добавить в словарь
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.green,
                         foregroundColor: Colors.white,
@@ -256,7 +261,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                             Container(
                               width: 30, height: 30,
                               decoration: BoxDecoration(
-                                color: Colors.green.withOpacity(0.1),
+                                color: Colors.green.withValues(alpha: 0.1),
                                 shape: BoxShape.circle,
                               ),
                               child: Center(
@@ -277,8 +282,6 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                         ),
                       );
                     }),
-
-                  // Отступ внизу для удобства скролла
                   const SizedBox(height: 40),
                 ],
               ),
@@ -289,12 +292,72 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
     );
   }
 
-  // Вспомогательный виджет для чипсов (время, ккал)
+  // --- ВИДЖЕТ БЖУ ---
+  Widget _buildMacroNutrients(int p, int f, int c) {
+    int total = p + f + c;
+    if (total == 0) total = 1; // Защита от деления на 0
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.withValues(alpha: 0.1)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _buildMacroItem(LanguageService.tr('protein'), p, Colors.greenAccent[700]!, total),
+          _buildVerticalDivider(),
+          _buildMacroItem(LanguageService.tr('fats'), f, Colors.orangeAccent[700]!, total),
+          _buildVerticalDivider(),
+          _buildMacroItem(LanguageService.tr('carbs'), c, Colors.blueAccent[700]!, total),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildVerticalDivider() {
+    return Container(height: 30, width: 1, color: Colors.grey.withValues(alpha: 0.3));
+  }
+
+  Widget _buildMacroItem(String label, int value, Color color, int total) {
+    double percentage = (value / total).clamp(0.0, 1.0);
+
+    return Column(
+      children: [
+        Text(
+          "$value${LanguageService.tr('g')}", // "20г"
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label, // "Белки"
+          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+        ),
+        const SizedBox(height: 8),
+        // Мини-бар
+        SizedBox(
+          width: 60,
+          height: 4,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(2),
+            child: LinearProgressIndicator(
+              value: percentage,
+              backgroundColor: color.withValues(alpha: 0.2),
+              color: color,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildInfoChip(IconData icon, String label, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
@@ -309,5 +372,15 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
         ],
       ),
     );
+  }
+
+  // Вспомогательная функция для парсинга (если придет строка или null)
+  int _parseInt(dynamic value) {
+    if (value is int) return value;
+    if (value is double) return value.toInt();
+    if (value is String) {
+      return int.tryParse(value.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+    }
+    return 0;
   }
 }
