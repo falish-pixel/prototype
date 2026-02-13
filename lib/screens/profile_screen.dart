@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 import '../services/language_service.dart';
 import '../services/user_service.dart';
 
+import 'package:intl/intl.dart'; // <--- Добавь этот импорт для красивой даты
+import '../services/calorie_service.dart'; // <--- И этот
+
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
@@ -138,7 +141,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
 
                   const SizedBox(height: 40),
-
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: _showHistorySheet, // Вызываем функцию
+                      icon: const Icon(Icons.history, color: Colors.orange),
+                      label: Text(LanguageService.tr('history_title')), // "История питания"
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        side: const BorderSide(color: Colors.orange),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 30),
                   TextField(
                     controller: _nameController,
                     decoration: InputDecoration(
@@ -188,6 +204,60 @@ class _ProfileScreenState extends State<ProfileScreen> {
           Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[600]), textAlign: TextAlign.center),
         ],
       ),
+    );
+  }
+  void _showHistorySheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            children: [
+              Text(LanguageService.tr('history_title'), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 10),
+              Expanded(
+                child: StreamBuilder<QuerySnapshot>(
+                  stream: CalorieService.getHistoryStream(),
+                  builder: (context, snapshot) {
+                    if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+                    final docs = snapshot.data!.docs;
+
+                    if (docs.isEmpty) {
+                      return Center(child: Text(LanguageService.tr('empty_history'), style: const TextStyle(color: Colors.grey)));
+                    }
+
+                    return ListView.builder(
+                      itemCount: docs.length,
+                      itemBuilder: (context, index) {
+                        final data = docs[index].data() as Map<String, dynamic>;
+                        final kcal = data['amount'] ?? 0;
+                        final name = data['label'] ?? 'Food'; // Теперь тут будет название!
+
+                        // Форматируем дату
+                        String dateStr = "";
+                        if (data['date'] != null) {
+                          final date = (data['date'] as Timestamp).toDate();
+                          dateStr = DateFormat('dd MMM, HH:mm').format(date);
+                        }
+
+                        return ListTile(
+                          leading: const Icon(Icons.restaurant_menu, color: Colors.green),
+                          title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                          subtitle: Text(dateStr),
+                          trailing: Text("+$kcal ккал", style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold)),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

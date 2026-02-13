@@ -229,6 +229,8 @@ class LanguageService {
     'level_up_title': {'ru': 'НОВЫЙ УРОВЕНЬ!', 'kk': 'ЖАҢА ДЕҢГЕЙ!', 'en': 'LEVEL UP!'},
     'level_up_desc': {'ru': 'Поздравляем! Вы достигли уровня', 'kk': 'Құттықтаймыз! Сіз деңгейге жеттіңіз:', 'en': 'Congrats! You reached level'},
     'cool': {'ru': 'КРУТО!', 'kk': 'КЕРЕМЕТ!', 'en': 'COOL!'},
+    'history_title': {'ru': 'История питания', 'kk': 'Тамақтану тарихы', 'en': 'Food History'},
+    'empty_history': {'ru': 'Пока пусто', 'kk': 'Әзірге бос', 'en': 'Empty so far'},
     // Добавь эту строчку:
     'daily_goal': {'ru': 'Моя цель (ккал)', 'kk': 'Күнделікті мақсат (ккал)', 'en': 'Daily Goal (kcal)'},
   };
