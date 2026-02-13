@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/services.dart'; // Для фильтра цифр
 import '../services/language_service.dart';
 import '../services/theme_service.dart';
+import '../services/calorie_service.dart'; // Импорт сервиса
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -14,14 +16,39 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _glutenFree = false;
   bool _lactoseFree = false;
   bool _nutAllergy = false;
-  // Новые переменные для диеты
   bool _isVegan = false;
   bool _isVegetarian = false;
+
+  // Контроллер для цели
+  final TextEditingController _goalController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _loadSettings();
+    _loadCalorieGoal();
+  }
+
+  Future<void> _loadCalorieGoal() async {
+    int goal = await CalorieService.getCurrentGoal();
+    if (mounted) {
+      setState(() {
+        _goalController.text = goal.toString();
+      });
+    }
+  }
+
+  Future<void> _saveCalorieGoal() async {
+    if (_goalController.text.isEmpty) return;
+    int? newGoal = int.tryParse(_goalController.text);
+    if (newGoal != null && newGoal > 500 && newGoal < 10000) {
+      await CalorieService.updateGoal(newGoal);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(LanguageService.tr('save')))
+        );
+      }
+    }
   }
 
   Future<void> _loadSettings() async {
@@ -46,9 +73,46 @@ class _SettingsScreenState extends State<SettingsScreen> {
       appBar: AppBar(title: Text(LanguageService.tr('settings'))),
       body: ListView(
         children: [
-          // ЯЗЫК
+          // --- БЛОК ЦЕЛИ ---
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: Text("Моя цель (ккал)", // Можно добавить в словарь переводов
+                style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+          ),
+          Card(
+            margin: const EdgeInsets.symmetric(horizontal: 16),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              child: Row(
+                children: [
+                  const Icon(Icons.flag, color: Colors.orange),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: TextField(
+                      controller: _goalController,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      decoration: const InputDecoration(
+                        border: InputBorder.none,
+                        hintText: "2000",
+                      ),
+                      onSubmitted: (_) => _saveCalorieGoal(),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: _saveCalorieGoal,
+                    child: Text(LanguageService.tr('save')),
+                  )
+                ],
+              ),
+            ),
+          ),
+
+          const Divider(height: 30),
+
+          // --- ЯЗЫК ---
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
             child: Text(LanguageService.tr('language'),
                 style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
           ),
@@ -78,7 +142,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           const Divider(height: 30),
 
-          // ТЕМА
+          // --- ТЕМА ---
           SwitchListTile(
             title: Text(LanguageService.tr('dark_mode')),
             secondary: const Icon(Icons.dark_mode),
@@ -91,33 +155,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           const Divider(height: 30),
 
-          // ДИЕТА (НОВОЕ)
+          // --- ДИЕТА ---
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: Text(LanguageService.tr('diet'), // Добавьте ключ 'diet' в переводы
+            child: Text(LanguageService.tr('diet'),
                 style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
           ),
           SwitchListTile(
-            title: Text(LanguageService.tr('vegan')), // 'vegan'
+            title: Text(LanguageService.tr('vegan')),
             secondary: const Icon(Icons.grass, color: Colors.green),
             value: _isVegan,
             onChanged: (val) {
               setState(() {
                 _isVegan = val;
-                if (val) _isVegetarian = false; // Взаимоисключение
+                if (val) _isVegetarian = false;
               });
               _saveSetting('isVegan', val);
               _saveSetting('isVegetarian', false);
             },
           ),
           SwitchListTile(
-            title: Text(LanguageService.tr('vegetarian')), // 'vegetarian'
+            title: Text(LanguageService.tr('vegetarian')),
             secondary: const Icon(Icons.egg_alt, color: Colors.orange),
             value: _isVegetarian,
             onChanged: (val) {
               setState(() {
                 _isVegetarian = val;
-                if (val) _isVegan = false; // Взаимоисключение
+                if (val) _isVegan = false;
               });
               _saveSetting('isVegetarian', val);
               _saveSetting('isVegan', false);
@@ -126,7 +190,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           const Divider(height: 30),
 
-          // ПИЩЕВЫЕ ОГРАНИЧЕНИЯ
+          // --- ПИЩЕВЫЕ ОГРАНИЧЕНИЯ ---
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
             child: Text(LanguageService.tr('food_restrictions'),
