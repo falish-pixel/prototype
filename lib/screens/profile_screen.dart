@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../services/language_service.dart';
@@ -28,13 +29,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // 1. Пытаемся обновить в Auth (может выдать ошибку, но имя сменит)
+      await UserService.updateNameInFirestore(_nameController.text.trim());
       try {
         await user?.updateDisplayName(_nameController.text.trim());
       } catch (_) {}
-
-      // 2. ГАРАНТИРОВАННО сохраняем в Firestore
-      await UserService.updateNameInFirestore(_nameController.text.trim());
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -43,9 +41,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         Navigator.pop(context, true);
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
-      }
+      debugPrint("Error: $e");
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -53,61 +49,144 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(LanguageService.tr('edit_profile'))),
-      body: SingleChildScrollView( // Чтобы не было проблем на маленьких экранах
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          children: [
-            const SizedBox(height: 20),
+    return StreamBuilder<DocumentSnapshot>(
+        stream: UserService.getUserStream(),
+        builder: (context, snapshot) {
+          int level = 1;
+          int xp = 0;
+          int recipesCooked = 0;
 
-            // Аватарка (заглушка)
-            Container(
-              width: 100, height: 100,
-              decoration: BoxDecoration(
-                color: Colors.green.withValues(alpha: 0.1), // Современный метод прозрачности
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.person, size: 60, color: Colors.green),
-            ),
-            const SizedBox(height: 40),
+          if (snapshot.hasData && snapshot.data!.exists) {
+            final data = snapshot.data!.data() as Map<String, dynamic>;
+            level = data['level'] ?? 1;
+            xp = data['xp'] ?? 0;
+            recipesCooked = data['recipesCooked'] ?? 0;
 
-            // Поле ввода имени
-            TextField(
-              controller: _nameController,
-              decoration: InputDecoration(
-                labelText: LanguageService.tr('your_name'),
-                prefixIcon: const Icon(Icons.edit),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-            ),
-            const SizedBox(height: 30),
+            if (!_isLoading && _nameController.text.isEmpty) {
+              _nameController.text = data['displayName'] ?? "";
+            }
+          }
 
-            // Кнопка Сохранить
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _isLoading ? null : _updateName,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                child: _isLoading
-                    ? const SizedBox(
-                    height: 20,
-                    width: 20,
-                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)
-                )
-                    : Text(
-                    LanguageService.tr('save'),
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)
-                ),
+          int xpNextLevel = level * 100;
+          double progress = (xp / xpNextLevel).clamp(0.0, 1.0);
+
+          return Scaffold(
+            appBar: AppBar(title: Text(LanguageService.tr('edit_profile'))),
+            body: SingleChildScrollView(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                children: [
+                  const SizedBox(height: 10),
+
+                  Stack(
+                    alignment: Alignment.bottomRight,
+                    children: [
+                      Container(
+                        width: 110, height: 110,
+                        decoration: BoxDecoration(
+                          color: Colors.green.withValues(alpha: 0.1),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.green, width: 3),
+                        ),
+                        child: const Icon(Icons.person, size: 60, color: Colors.green),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: const BoxDecoration(color: Colors.orange, shape: BoxShape.circle),
+                        child: Text("$level", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 18)),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 20),
+                  // ЛОКАЛИЗАЦИЯ: "Шеф-повар Уровня X" / "Бас аспаз деңгейі X"
+                  Text("${LanguageService.tr('chef_level')} $level", style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+
+                  const SizedBox(height: 10),
+
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: LinearProgressIndicator(
+                      value: progress,
+                      minHeight: 14,
+                      backgroundColor: Colors.grey[200],
+                      color: Colors.green,
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text("XP: $xp", style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
+                        // ЛОКАЛИЗАЦИЯ: "Цель: 100" / "Мақсат: 100"
+                        Text("${LanguageService.tr('goal')}: $xpNextLevel", style: const TextStyle(color: Colors.grey)),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 30),
+
+                  Row(
+                    children: [
+                      // ЛОКАЛИЗАЦИЯ: Блюд готово
+                      Expanded(child: _buildStatCard(Icons.restaurant, "$recipesCooked", LanguageService.tr('dishes_cooked'))),
+                      const SizedBox(width: 12),
+                      // ЛОКАЛИЗАЦИЯ: Серия дней
+                      Expanded(child: _buildStatCard(Icons.local_fire_department, "🔥", LanguageService.tr('day_streak'))),
+                    ],
+                  ),
+
+                  const SizedBox(height: 40),
+
+                  TextField(
+                    controller: _nameController,
+                    decoration: InputDecoration(
+                      labelText: LanguageService.tr('your_name'),
+                      prefixIcon: const Icon(Icons.edit),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                  const SizedBox(height: 30),
+
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _isLoading ? null : _updateName,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: _isLoading
+                          ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white))
+                          : Text(LanguageService.tr('save'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
+          );
+        }
+    );
+  }
+
+  Widget _buildStatCard(IconData icon, String value, String label) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 4))],
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: Colors.green, size: 28),
+          const SizedBox(height: 8),
+          Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+          Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[600]), textAlign: TextAlign.center),
+        ],
       ),
     );
   }

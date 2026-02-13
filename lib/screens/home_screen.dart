@@ -37,31 +37,65 @@ class _HomeScreenState extends State<HomeScreen> {
         backgroundColor: cardColor,
         surfaceTintColor: Colors.transparent,
         title: StreamBuilder<DocumentSnapshot>(
-          stream: UserService.getUserStream(), // Берем данные из Firestore
+          stream: UserService.getUserStream(),
           builder: (context, snapshot) {
-            String displayName = LanguageService.tr('chef'); // Дефолт
+            String displayName = LanguageService.tr('chef');
+            int level = 1;
+            int xp = 0;
 
             if (snapshot.hasData && snapshot.data!.exists) {
               final data = snapshot.data!.data() as Map<String, dynamic>;
-              // Берем имя из базы, если оно там есть
-              if (data['displayName'] != null) {
-                displayName = data['displayName'];
-              }
+              displayName = data['displayName'] ?? displayName;
+              level = data['level'] ?? 1;
+              xp = data['xp'] ?? 0;
             } else if (FirebaseAuth.instance.currentUser?.displayName != null) {
-              // Если в базе нет, берем из Auth
               displayName = FirebaseAuth.instance.currentUser!.displayName!;
             }
 
+            int xpNextLevel = level * 100;
+            double progress = (xp / xpNextLevel).clamp(0.0, 1.0);
+
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
-                  "${LanguageService.tr('hello')},",
-                  style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-                ),
-                Text(
-                  "$displayName!",
+                  "${LanguageService.tr('hello')}, $displayName!",
                   style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.orange,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      // ЛОКАЛИЗАЦИЯ: "Ур. 1" или "Ден. 1"
+                      child: Text(
+                        "${LanguageService.tr('level_short')} $level",
+                        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: LinearProgressIndicator(
+                          value: progress,
+                          minHeight: 6,
+                          backgroundColor: isDark ? Colors.grey[800] : Colors.grey[300],
+                          color: Colors.green,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      "$xp / $xpNextLevel XP",
+                      style: TextStyle(fontSize: 10, color: isDark ? Colors.grey[400] : Colors.grey[600]),
+                    ),
+                  ],
                 ),
               ],
             );
