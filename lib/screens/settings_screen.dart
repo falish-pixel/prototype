@@ -95,7 +95,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           // --- БЛОК ЦЕЛИ ---
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: Text("Моя цель (ккал)", // Можно добавить в словарь переводов
+            child: Text(LanguageService.tr('daily_goal'), // <--- ТЕПЕРЬ ТУТ БУДЕТ КАЗАХСКИЙ
                 style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
           ),
           Card(

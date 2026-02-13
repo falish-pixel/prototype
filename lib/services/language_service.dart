@@ -212,5 +212,7 @@ class LanguageService {
     'fats': {'ru': 'Жиры', 'kk': 'Майлар', 'en': 'Fats'},
     'carbs': {'ru': 'Углеводы', 'kk': 'Көмірсу', 'en': 'Carbs'},
     'g': {'ru': 'г', 'kk': 'г', 'en': 'g'},
+    // Добавь эту строчку:
+    'daily_goal': {'ru': 'Моя цель (ккал)', 'kk': 'Күнделікті мақсат (ккал)', 'en': 'Daily Goal (kcal)'},
   };
 }
