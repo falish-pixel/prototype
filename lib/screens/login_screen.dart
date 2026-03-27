@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../services/language_service.dart';
+import 'phone_login_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -22,73 +23,138 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Проверяем, включена ли темная тема
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Scaffold(
-      // Фон теперь берется из настройки темы в main.dart (темный или светлый)
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        body: SafeArea(
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
             children: [
+              const SizedBox(height: 40),
+              // Логотип
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  // В темной теме делаем круг полупрозрачным, в светлой — светлым
                   color: isDark ? Colors.green.withOpacity(0.2) : Colors.green[100],
                 ),
                 child: const Icon(Icons.restaurant_menu, size: 60, color: Colors.green),
               ),
-              const SizedBox(height: 30),
-
+              const SizedBox(height: 20),
               Text(
                 LanguageService.tr('app_title'),
                 style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 10),
-              Text(
-                LanguageService.tr('login_subtitle'),
-                // Цвет подзаголовка адаптируем
-                style: TextStyle(color: isDark ? Colors.grey[400] : Colors.grey[700]),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 50),
+              const SizedBox(height: 30),
 
-              if (_isLoading)
-                const CircularProgressIndicator(color: Colors.green)
-              else ...[
-                // Кнопка Google (оставляем белой для узнаваемости)
-                ElevatedButton.icon(
-                  onPressed: _handleGoogleSignIn,
-                  icon: const Icon(Icons.login),
-                  label: Text(LanguageService.tr('login_google')),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    foregroundColor: Colors.black,
-                    minimumSize: const Size(double.infinity, 50),
-                    elevation: 2,
-                  ),
+              // Вкладки переключения
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 24),
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.grey[900] : Colors.grey[200],
+                  borderRadius: BorderRadius.circular(25),
                 ),
-                const SizedBox(height: 16),
-                // Кнопка телефона
-                OutlinedButton.icon(
-                  onPressed: () {},
-                  icon: const Icon(Icons.phone),
-                  label: Text(LanguageService.tr('login_phone')),
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(double.infinity, 50),
-                    foregroundColor: Colors.green,
-                    side: const BorderSide(color: Colors.green),
+                child: TabBar(
+                  indicatorSize: TabBarIndicatorSize.tab,
+                  indicator: BoxDecoration(
+                    color: Colors.green,
+                    borderRadius: BorderRadius.circular(25),
                   ),
+                  labelColor: Colors.white,
+                  unselectedLabelColor: isDark ? Colors.grey[400] : Colors.grey[600],
+                  dividerColor: Colors.transparent,
+                  tabs: [
+                    Tab(text: LanguageService.tr('tab_login')),
+                    Tab(text: LanguageService.tr('tab_register')),
+                  ],
                 ),
-              ],
+              ),
+
+              const SizedBox(height: 30),
+
+              // Содержимое вкладок
+              Expanded(
+                child: TabBarView(
+                  children: [
+                    // --- ВКЛАДКА "ВХОД" ---
+                    _buildAuthTab(
+                      context: context,
+                      isDark: isDark,
+                      subtitle: LanguageService.tr('login_welcome'),
+                      googleText: LanguageService.tr('login_google'),
+                      phoneText: LanguageService.tr('login_phone'),
+                    ),
+
+                    // --- ВКЛАДКА "РЕГИСТРАЦИЯ" ---
+                    _buildAuthTab(
+                      context: context,
+                      isDark: isDark,
+                      subtitle: LanguageService.tr('register_welcome'),
+                      googleText: LanguageService.tr('register_google'),
+                      phoneText: LanguageService.tr('register_phone'),
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  // Виджет для отрисовки внутренностей вкладки
+  Widget _buildAuthTab({
+    required BuildContext context,
+    required bool isDark,
+    required String subtitle,
+    required String googleText,
+    required String phoneText,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24.0),
+      child: Column(
+        children: [
+          Text(
+            subtitle,
+            style: TextStyle(color: isDark ? Colors.grey[400] : Colors.grey[700]),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 40),
+
+          if (_isLoading)
+            const CircularProgressIndicator(color: Colors.green)
+          else ...[
+            ElevatedButton.icon(
+              onPressed: _handleGoogleSignIn,
+              icon: const Icon(Icons.login),
+              label: Text(googleText),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: Colors.black,
+                minimumSize: const Size(double.infinity, 50),
+                elevation: 2,
+              ),
+            ),
+            const SizedBox(height: 16),
+            OutlinedButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const PhoneLoginScreen()),
+                );
+              },
+              icon: const Icon(Icons.phone),
+              label: Text(phoneText),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size(double.infinity, 50),
+                foregroundColor: Colors.green,
+                side: const BorderSide(color: Colors.green),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }

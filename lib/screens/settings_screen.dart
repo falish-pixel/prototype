@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:flutter/services.dart'; // Для фильтра цифр
+import 'package:flutter/services.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // Добавлен Firebase для имени
 import '../services/language_service.dart';
 import '../services/theme_service.dart';
-import '../services/calorie_service.dart'; // Импорт сервиса
+import '../services/calorie_service.dart';
 
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key});
+  final bool isInitialSetup; // Флаг первого входа
+
+  const SettingsScreen({super.key, this.isInitialSetup = false});
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -19,14 +22,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _isVegan = false;
   bool _isVegetarian = false;
 
-  // Контроллер для цели
   final TextEditingController _goalController = TextEditingController();
+  final TextEditingController _nameController = TextEditingController(); // Контроллер имени
 
   @override
   void initState() {
     super.initState();
     _loadSettings();
     _loadCalorieGoal();
+
+    // Подтягиваем имя из Google (если зашли через него)
+    _nameController.text = FirebaseAuth.instance.currentUser?.displayName ?? '';
   }
 
   Future<void> _loadCalorieGoal() async {
@@ -43,7 +49,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     int? newGoal = int.tryParse(_goalController.text);
     if (newGoal != null && newGoal > 500 && newGoal < 10000) {
       await CalorieService.updateGoal(newGoal);
-      if (mounted) {
+      // Показываем Снэкбар, только если это НЕ первый вход (чтобы не мешало переходу)
+      if (mounted && !widget.isInitialSetup) {
         ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text(LanguageService.tr('save')))
         );
@@ -67,16 +74,89 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await prefs.setBool(key, value);
   }
 
+  // === ЛОГИКА ЗАВЕРШЕНИЯ НАСТРОЙКИ ===
+  Future<void> _completeInitialSetup() async {
+    // 1. Сохраняем имя (с обходом бага Firebase)
+    if (_nameController.text.trim().isNotEmpty) {
+      try {
+        await FirebaseAuth.instance.currentUser?.updateDisplayName(_nameController.text.trim());
+      } catch (e) {
+        debugPrint('Проигнорирована системная ошибка Firebase: $e');
+      }
+    }
+
+    // 2. Сохраняем калории
+    await _saveCalorieGoal();
+
+    // 3. Отмечаем, что настройка пройдена
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('isProfileSetup', true);
+
+    // 4. Переходим на главную
+    if (mounted) {
+      Navigator.pushReplacementNamed(context, '/home');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(LanguageService.tr('settings'))),
+      appBar: AppBar(
+        title: Text(widget.isInitialSetup
+            ? LanguageService.tr('profile_setup') // Локализованный заголовок
+            : LanguageService.tr('settings')),
+        automaticallyImplyLeading: !widget.isInitialSetup,
+      ),
+      // Твой родной ListView без лишних оберток
       body: ListView(
         children: [
+          // === БЛОК ПРИВЕТСТВИЯ И ИМЕНИ (ТОЛЬКО ДЛЯ ПЕРВОГО ВХОДА) ===
+          if (widget.isInitialSetup) ...[
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Text(
+                LanguageService.tr('welcome_setup'), // Локализованное приветствие
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black87,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+              child: Text(LanguageService.tr('your_name'),
+                  style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+            ),
+            Card(
+              margin: const EdgeInsets.symmetric(horizontal: 16),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                child: Row(
+                  children: [
+                    const Icon(Icons.person, color: Colors.green),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: TextField(
+                        controller: _nameController,
+                        decoration: InputDecoration(
+                          border: InputBorder.none,
+                          hintText: LanguageService.tr('change_name_hint'),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const Divider(height: 30),
+          ],
+
           // --- БЛОК ЦЕЛИ ---
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: Text(LanguageService.tr('daily_goal'), // <--- ТЕПЕРЬ ТУТ БУДЕТ КАЗАХСКИЙ
+            child: Text(LanguageService.tr('daily_goal'),
                 style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
           ),
           Card(
@@ -99,10 +179,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       onSubmitted: (_) => _saveCalorieGoal(),
                     ),
                   ),
-                  TextButton(
-                    onPressed: _saveCalorieGoal,
-                    child: Text(LanguageService.tr('save')),
-                  )
+                  if (!widget.isInitialSetup) // Скрываем обычную кнопку "Сохранить", если это онбординг
+                    TextButton(
+                      onPressed: _saveCalorieGoal,
+                      child: Text(LanguageService.tr('save')),
+                    )
                 ],
               ),
             ),
@@ -223,6 +304,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
               _saveSetting('nutAllergy', val);
             },
           ),
+
+          // === КНОПКА ЗАВЕРШЕНИЯ В САМОМ КОНЦЕ СПИСКА ===
+          if (widget.isInitialSetup) ...[
+            const SizedBox(height: 20),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 24.0),
+              child: ElevatedButton(
+                onPressed: _completeInitialSetup,
+                style: ElevatedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 55),
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  elevation: 2,
+                ),
+                child: Text(LanguageService.tr('complete_setup'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              ),
+            ),
+          ] else ...[
+            const SizedBox(height: 40), // Отступ для обычных настроек снизу
+          ]
         ],
       ),
     );

@@ -2,8 +2,9 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // <-- Обязательный импорт для проверки первого входа
 import 'services/language_service.dart';
-import 'services/theme_service.dart'; // Убедитесь, что этот файл создан
+import 'services/theme_service.dart';
 import 'screens/home_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/login_screen.dart';
@@ -68,7 +69,7 @@ class SmartRecipeApp extends StatelessWidget {
                 cardColor: const Color(0xFF1E1E1E),
               ),
 
-              home: const AuthGate(), // Здесь вызывается класс ниже
+              home: const AuthGate(), // Вызов обновленного AuthGate
               routes: {
                 '/home': (context) => const HomeScreen(),
                 '/settings': (context) => const SettingsScreen(),
@@ -83,24 +84,50 @@ class SmartRecipeApp extends StatelessWidget {
   }
 }
 
-// === ВОТ ЭТОТ КЛАСС БЫЛ ПОТЕРЯН ===
+// === ОБНОВЛЕННЫЙ AUTH GATE ===
 class AuthGate extends StatelessWidget {
   const AuthGate({super.key});
+
+  // Функция проверки: первый ли это вход?
+  Future<bool> _isFirstTimeSetup() async {
+    final prefs = await SharedPreferences.getInstance();
+    // Если ключа 'isProfileSetup' нет, значит это первый вход (вернет false)
+    return prefs.getBool('isProfileSetup') ?? false;
+  }
 
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.userChanges(),
       builder: (context, snapshot) {
-        // Ожидание соединения
+        // Ожидание соединения с Firebase
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(body: Center(child: CircularProgressIndicator()));
         }
-        // Если пользователь вошел -> Главный экран
+
+        // Если пользователь авторизован
         if (snapshot.hasData) {
-          return const HomeScreen();
+          return FutureBuilder<bool>(
+            future: _isFirstTimeSetup(),
+            builder: (context, setupSnapshot) {
+              if (setupSnapshot.connectionState == ConnectionState.waiting) {
+                return const Scaffold(body: Center(child: CircularProgressIndicator(color: Colors.green)));
+              }
+
+              final isSetupComplete = setupSnapshot.data ?? false;
+
+              // Если профиль уже настроен -> Главный экран
+              if (isSetupComplete) {
+                return const HomeScreen();
+              } else {
+                // Если профиль НЕ настроен -> Экран настройки профиля (Онбординг)
+                return const SettingsScreen(isInitialSetup: true);
+              }
+            },
+          );
         }
-        // Если нет -> Экран входа
+
+        // Если пользователь НЕ авторизован -> Экран входа
         return const LoginScreen();
       },
     );

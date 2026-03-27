@@ -225,13 +225,105 @@ class LanguageService {
     'dishes_cooked': {'ru': 'Блюд готово', 'kk': 'Дайын тағамдар', 'en': 'Dishes cooked'},
     'day_streak': {'ru': 'Серия дней', 'kk': 'Күндер сериясы', 'en': 'Day streak'},
 
+    // === АВТОРИЗАЦИЯ И ТЕЛЕФОН (PHONE LOGIN) ===
+    'phone_hint': {
+      'ru': 'Номер телефона (+7...)',
+      'kk': 'Телефон нөмірі (+7...)',
+      'en': 'Phone number (+7...)',
+    },
+    'get_code': {
+      'ru': 'Получить код',
+      'kk': 'Кодты алу',
+      'en': 'Get code',
+    },
+    'sms_code': {
+      'ru': 'SMS-код',
+      'kk': 'SMS-код',
+      'en': 'SMS code',
+    },
+    'enter': {
+      'ru': 'Войти',
+      'kk': 'Кіру',
+      'en': 'Sign in',
+    },
+    'invalid_sms': {
+      'ru': 'Неверный SMS-код',
+      'kk': 'Қате SMS-код',
+      'en': 'Invalid SMS code',
+    },
+    'error': {
+      'ru': 'Ошибка',
+      'kk': 'Қате',
+      'en': 'Error',
+    },
+
+    // === ПЕРВОНАЧАЛЬНАЯ НАСТРОЙКА (PROFILE SETUP) ===
+    'profile_setup': {
+      'ru': 'Настройка профиля',
+      'kk': 'Профильді баптау',
+      'en': 'Profile Setup',
+    },
+    'complete_setup': {
+      'ru': 'Завершить и начать работу',
+      'kk': 'Аяқтау және бастау',
+      'en': 'Complete and start',
+    },
+
+    // === ОНБОРДИНГ (ПЕРВАЯ НАСТРОЙКА) ===
+    'profile_setup': {
+      'ru': 'Настройка профиля',
+      'kk': 'Профильді баптау',
+      'en': 'Profile Setup',
+    },
+    'welcome_setup': {
+      'ru': 'Добро пожаловать!\nДавайте настроим ваш профиль.',
+      'kk': 'Қош келдіңіз!\nПрофиліңізді баптайық.',
+      'en': 'Welcome!\nLet\'s set up your profile.',
+    },
+    'complete_setup': {
+      'ru': 'Сохранить профиль и начать',
+      'kk': 'Профильді сақтап, бастау',
+      'en': 'Save profile and start',
+    },
+
+    // === ВКЛАДКИ И РЕГИСТРАЦИЯ ===
+    'tab_login': {
+      'ru': 'Вход',
+      'kk': 'Кіру',
+      'en': 'Login',
+    },
+    'tab_register': {
+      'ru': 'Регистрация',
+      'kk': 'Тіркелу',
+      'en': 'Sign Up',
+    },
+    'login_welcome': {
+      'ru': 'С возвращением! Войдите в аккаунт',
+      'kk': 'Қайта оралуыңызбен! Аккаунтқа кіріңіз',
+      'en': 'Welcome back! Sign in to your account',
+    },
+    'register_welcome': {
+      'ru': 'Создайте аккаунт, чтобы сохранять рецепты',
+      'kk': 'Рецепттерді сақтау үшін аккаунт жасаңыз',
+      'en': 'Create an account to save recipes',
+    },
+    'register_google': {
+      'ru': 'Регистрация через Google',
+      'kk': 'Google арқылы тіркелу',
+      'en': 'Sign up with Google',
+    },
+    'register_phone': {
+      'ru': 'Регистрация по телефону',
+      'kk': 'Телефон арқылы тіркелу',
+      'en': 'Sign up with Phone',
+    },
+
     // Диалог уровня
     'level_up_title': {'ru': 'НОВЫЙ УРОВЕНЬ!', 'kk': 'ЖАҢА ДЕҢГЕЙ!', 'en': 'LEVEL UP!'},
     'level_up_desc': {'ru': 'Поздравляем! Вы достигли уровня', 'kk': 'Құттықтаймыз! Сіз деңгейге жеттіңіз:', 'en': 'Congrats! You reached level'},
     'cool': {'ru': 'КРУТО!', 'kk': 'КЕРЕМЕТ!', 'en': 'COOL!'},
     'history_title': {'ru': 'История питания', 'kk': 'Тамақтану тарихы', 'en': 'Food History'},
     'empty_history': {'ru': 'Пока пусто', 'kk': 'Әзірге бос', 'en': 'Empty so far'},
-    // Добавь эту строчку:
     'daily_goal': {'ru': 'Моя цель (ккал)', 'kk': 'Күнделікті мақсат (ккал)', 'en': 'Daily Goal (kcal)'},
   };
 }
