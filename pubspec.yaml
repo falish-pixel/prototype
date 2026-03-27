@@ -13,6 +13,7 @@ dependencies:
     sdk: flutter
   cupertino_icons: ^1.0.8
   image_picker: ^1.0.7  # Для камеры
+  flutter_launcher_icons: ^0.13.1
   google_generative_ai: ^0.4.7
   shared_preferences: ^2.2.2
   firebase_core: ^2.24.2
@@ -31,4 +32,9 @@ dev_dependencies:
 flutter:
 
   uses-material-design: true
-
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "assets/images/app_icon.png"
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/images/app_icon.png"
