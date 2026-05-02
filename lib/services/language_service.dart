@@ -226,6 +226,41 @@ class LanguageService {
     'day_streak': {'ru': 'Серия дней', 'kk': 'Күндер сериясы', 'en': 'Day streak'},
 
     // === АВТОРИЗАЦИЯ И ТЕЛЕФОН (PHONE LOGIN) ===
+    'email_hint': {
+      'ru': 'Электронная почта',
+      'kk': 'Электрондық пошта',
+      'en': 'Email Address',
+    },
+    'password_hint': {
+      'ru': 'Пароль',
+      'kk': 'Құпия сөз',
+      'en': 'Password',
+    },
+    'password_validation_error': {
+      'ru': 'Пароль должен быть > 8 символов, содержать буквы и цифры',
+      'kk': 'Құпия сөз 8 таңбадан көп болуы, әріптер мен сандардан тұруы керек',
+      'en': 'Password must be > 8 chars, include letters and numbers',
+    },
+    'invalid_email': {
+      'ru': 'Введите корректный email',
+      'kk': 'Дұрыс email енгізіңіз',
+      'en': 'Enter a valid email',
+    },
+    'verification_sent': {
+      'ru': 'Письмо для подтверждения отправлено на почту!',
+      'kk': 'Растау хаты поштаға жіберілді!',
+      'en': 'Verification email has been sent!',
+    },
+    'email_not_verified': {
+      'ru': 'Пожалуйста, подтвердите ваш email перед входом',
+      'kk': 'Кірмес бұрын email-ды растаңыз',
+      'en': 'Please verify your email before signing in',
+    },
+    'submit': {
+      'ru': 'Отправить',
+      'kk': 'Жіберу',
+      'en': 'Submit',
+    },
     'phone_hint': {
       'ru': 'Номер телефона (+7...)',
       'kk': 'Телефон нөмірі (+7...)',

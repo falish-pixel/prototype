@@ -107,6 +107,17 @@ class AuthGate extends StatelessWidget {
 
         // Если пользователь авторизован
         if (snapshot.hasData) {
+          final user = snapshot.data;
+
+          // ПРОВЕРКА ПОДТВЕРЖДЕНИЯ ПОЧТЫ
+          // Если это вход через Email (не Google и не телефон) и почта не подтверждена
+          bool isGoogle = user?.providerData.any((p) => p.providerId == 'google.com') ?? false;
+          bool isPhone = user?.providerData.any((p) => p.providerId == 'phone') ?? false;
+
+          if (!isGoogle && !isPhone && user?.email != null && !user!.emailVerified) {
+            return const LoginScreen();
+          }
+
           return FutureBuilder<bool>(
             future: _isFirstTimeSetup(),
             builder: (context, setupSnapshot) {

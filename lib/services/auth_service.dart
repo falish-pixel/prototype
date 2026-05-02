@@ -27,6 +27,59 @@ class AuthService {
     }
   }
 
+  // Регистрация через Email/Password
+  Future<UserCredential?> signUpWithEmail(String email, String password) async {
+    try {
+      UserCredential result = await _auth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      // Отправляем письмо
+      await result.user?.sendEmailVerification();
+      // СРАЗУ ВЫХОДИМ, чтобы пользователь не попал в приложение без подтверждения
+      await _auth.signOut(); 
+      return result;
+    } catch (e) {
+      print("Ошибка регистрации Email: $e");
+      rethrow;
+    }
+  }
+
+  // Вход через Email/Password
+  Future<UserCredential?> signInWithEmail(String email, String password) async {
+    try {
+      UserCredential result = await _auth.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      
+      // Проверяем, подтвержден ли email
+      if (result.user != null && !result.user!.emailVerified) {
+        // Если не подтвержден — выходим и кидаем ошибку
+        await _auth.signOut();
+        throw FirebaseAuthException(
+          code: 'email-not-verified',
+          message: 'Please verify your email first.',
+        );
+      }
+
+      return result;
+    } catch (e) {
+      print("Ошибка входа Email: $e");
+      rethrow;
+    }
+  }
+
+  // Проверка подтверждения Email
+  bool isEmailVerified() {
+    return _auth.currentUser?.emailVerified ?? false;
+  }
+
+  // Повторная отправка письма подтверждения
+  Future<void> sendVerificationEmail() async {
+    await _auth.currentUser?.sendEmailVerification();
+  }
+
   // Выход
   Future<void> signOut() async {
     await GoogleSignIn().signOut();
