@@ -1,11 +1,13 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../services/auth_service.dart';
 import '../services/language_service.dart';
 import '../services/user_service.dart';
 
-import 'package:intl/intl.dart'; // <--- Добавь этот импорт для красивой даты
-import '../services/calorie_service.dart'; // <--- И этот
+import 'package:intl/intl.dart';
+import '../services/calorie_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -16,8 +18,11 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final _nameController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final AuthService _authService = AuthService();
   final User? user = FirebaseAuth.instance.currentUser;
   bool _isLoading = false;
+  bool _isDeletionMode = false;
 
   @override
   void initState() {
@@ -28,14 +33,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _updateName() async {
-    if (_nameController.text.trim().isEmpty) return;
+    final newName = _nameController.text.trim();
+    if (newName.isEmpty) return;
     setState(() => _isLoading = true);
 
     try {
-      await UserService.updateNameInFirestore(_nameController.text.trim());
-      try {
-        await user?.updateDisplayName(_nameController.text.trim());
-      } catch (_) {}
+      await _authService.updateUsername(newName);
+      await UserService.updateNameInFirestore(newName);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -43,8 +47,73 @@ class _ProfileScreenState extends State<ProfileScreen> {
         );
         Navigator.pop(context, true);
       }
+    } on FirebaseAuthException catch (e) {
+      String message = e.code == 'username-taken' 
+          ? LanguageService.tr('username_taken') 
+          : e.message ?? e.code;
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message), backgroundColor: Colors.red),
+        );
+      }
     } catch (e) {
-      debugPrint("Error: $e");
+      debugPrint("Error updating name: $e");
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _confirmDeleteAccount() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(LanguageService.tr('delete_confirm_title')),
+        content: Text(LanguageService.tr('delete_confirm_desc')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(LanguageService.tr('cancel')),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(LanguageService.tr('delete'), style: const TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      setState(() => _isDeletionMode = true);
+    }
+  }
+
+  Future<void> _finalDelete() async {
+    final password = _passwordController.text.trim();
+    if (password.isEmpty) return;
+
+    setState(() => _isLoading = true);
+    try {
+      await _authService.deleteAccount(password);
+      
+      // Сбрасываем флаг настройки профиля
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('isProfileSetup', false);
+
+      if (mounted) {
+        // Очищаем стек и переходим на логин
+        Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+      }
+    } on FirebaseAuthException catch (e) {
+      String message = e.code == 'wrong-password' 
+          ? LanguageService.tr('invalid_password') 
+          : (e.message ?? e.code);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message), backgroundColor: Colors.red));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString()), backgroundColor: Colors.red));
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -52,6 +121,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isDeletionMode) {
+      return _buildDeletionVerificationUI();
+    }
+
     return StreamBuilder<DocumentSnapshot>(
         stream: UserService.getUserStream(),
         builder: (context, snapshot) {
@@ -80,7 +153,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
               child: Column(
                 children: [
                   const SizedBox(height: 10),
-
                   Stack(
                     alignment: Alignment.bottomRight,
                     children: [
@@ -100,13 +172,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ],
                   ),
-
                   const SizedBox(height: 20),
-                  // ЛОКАЛИЗАЦИЯ: "Шеф-повар Уровня X" / "Бас аспаз деңгейі X"
                   Text("${LanguageService.tr('chef_level')} $level", style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-
                   const SizedBox(height: 10),
-
                   ClipRRect(
                     borderRadius: BorderRadius.circular(10),
                     child: LinearProgressIndicator(
@@ -122,31 +190,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text("XP: $xp", style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
-                        // ЛОКАЛИЗАЦИЯ: "Цель: 100" / "Мақсат: 100"
                         Text("${LanguageService.tr('goal')}: $xpNextLevel", style: const TextStyle(color: Colors.grey)),
                       ],
                     ),
                   ),
-
                   const SizedBox(height: 30),
-
                   Row(
                     children: [
-                      // ЛОКАЛИЗАЦИЯ: Блюд готово
                       Expanded(child: _buildStatCard(Icons.restaurant, "$recipesCooked", LanguageService.tr('dishes_cooked'))),
                       const SizedBox(width: 12),
-                      // ЛОКАЛИЗАЦИЯ: Серия дней
                       Expanded(child: _buildStatCard(Icons.local_fire_department, "🔥", LanguageService.tr('day_streak'))),
                     ],
                   ),
-
                   const SizedBox(height: 40),
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton.icon(
-                      onPressed: _showHistorySheet, // Вызываем функцию
+                      onPressed: _showHistorySheet,
                       icon: const Icon(Icons.history, color: Colors.orange),
-                      label: Text(LanguageService.tr('history_title')), // "История питания"
+                      label: Text(LanguageService.tr('history_title')),
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         side: const BorderSide(color: Colors.orange),
@@ -164,7 +226,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ),
                   const SizedBox(height: 30),
-
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
@@ -180,11 +241,83 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           : Text(LanguageService.tr('save'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                     ),
                   ),
+                  const SizedBox(height: 20),
+                  TextButton.icon(
+                    onPressed: _isLoading ? null : _confirmDeleteAccount,
+                    icon: const Icon(Icons.delete_forever, color: Colors.red),
+                    label: Text(
+                      LanguageService.tr('delete_account'),
+                      style: const TextStyle(color: Colors.red),
+                    ),
+                  ),
                 ],
               ),
             ),
           );
         }
+    );
+  }
+
+  Widget _buildDeletionVerificationUI() {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(LanguageService.tr('delete_account')),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => setState(() => _isDeletionMode = false),
+        ),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.security, size: 80, color: Colors.orange),
+            const SizedBox(height: 24),
+            Text(
+              LanguageService.tr('enter_password_to_delete'),
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              LanguageService.tr('delete_account_step2'),
+              style: const TextStyle(color: Colors.grey),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 32),
+            TextField(
+              controller: _passwordController,
+              obscureText: true,
+              decoration: InputDecoration(
+                labelText: LanguageService.tr('password_label'),
+                prefixIcon: const Icon(Icons.lock),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+            const SizedBox(height: 32),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _isLoading ? null : _finalDelete,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: _isLoading
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : Text(LanguageService.tr('confirm_delete_button'), style: const TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ),
+            TextButton(
+              onPressed: () => setState(() => _isDeletionMode = false),
+              child: Text(LanguageService.tr('cancel')),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -206,6 +339,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
   }
+
   void _showHistorySheet() {
     showModalBottomSheet(
       context: context,
@@ -224,25 +358,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   builder: (context, snapshot) {
                     if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
                     final docs = snapshot.data!.docs;
-
                     if (docs.isEmpty) {
                       return Center(child: Text(LanguageService.tr('empty_history'), style: const TextStyle(color: Colors.grey)));
                     }
-
                     return ListView.builder(
                       itemCount: docs.length,
                       itemBuilder: (context, index) {
                         final data = docs[index].data() as Map<String, dynamic>;
                         final kcal = data['amount'] ?? 0;
-                        final name = data['label'] ?? 'Food'; // Теперь тут будет название!
-
-                        // Форматируем дату
+                        final name = data['label'] ?? 'Food';
                         String dateStr = "";
                         if (data['date'] != null) {
                           final date = (data['date'] as Timestamp).toDate();
                           dateStr = DateFormat('dd MMM, HH:mm').format(date);
                         }
-
                         return ListTile(
                           leading: const Icon(Icons.restaurant_menu, color: Colors.green),
                           title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),

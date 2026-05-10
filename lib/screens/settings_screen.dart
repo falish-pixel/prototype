@@ -5,6 +5,8 @@ import 'package:firebase_auth/firebase_auth.dart'; // Добавлен Firebase 
 import '../services/language_service.dart';
 import '../services/theme_service.dart';
 import '../services/calorie_service.dart';
+import '../services/auth_service.dart';
+import '../services/user_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   final bool isInitialSetup; // Флаг первого входа

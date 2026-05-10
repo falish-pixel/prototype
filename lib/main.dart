@@ -9,6 +9,7 @@ import 'screens/home_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/profile_screen.dart';
+import 'screens/verify_email_screen.dart'; // Добавляем импорт
 import 'firebase_options.dart';
 
 void main() async {
@@ -115,7 +116,7 @@ class AuthGate extends StatelessWidget {
           bool isPhone = user?.providerData.any((p) => p.providerId == 'phone') ?? false;
 
           if (!isGoogle && !isPhone && user?.email != null && !user!.emailVerified) {
-            return const LoginScreen();
+            return const VerifyEmailScreen(); // Показываем экран ожидания подтверждения
           }
 
           return FutureBuilder<bool>(

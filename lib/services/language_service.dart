@@ -226,6 +226,71 @@ class LanguageService {
     'day_streak': {'ru': 'Серия дней', 'kk': 'Күндер сериясы', 'en': 'Day streak'},
 
     // === АВТОРИЗАЦИЯ И ТЕЛЕФОН (PHONE LOGIN) ===
+    'forgot_password': {
+      'ru': 'Забыли пароль?',
+      'kk': 'Құпия сөзді ұмыттыңыз ба?',
+      'en': 'Forgot Password?',
+    },
+    'forgot_password_title': {
+      'ru': 'Восстановление пароля',
+      'kk': 'Құпия сөзді қайта орнату',
+      'en': 'Reset Password',
+    },
+    'forgot_password_subtitle': {
+      'ru': 'Введите ваш Email, и мы отправим ссылку для сброса пароля',
+      'kk': 'Email-ды енгізіңіз, біз құпия сөзді қайта орнату сілтемесін жібереміз',
+      'en': 'Enter your email and we will send you a password reset link',
+    },
+    'send': {
+      'ru': 'Отправить',
+      'kk': 'Жіберу',
+      'en': 'Send',
+    },
+    'back_to_login': {
+      'ru': 'Назад ко входу',
+      'kk': 'Кіруге қайту',
+      'en': 'Back to Login',
+    },
+    'reset_link_sent': {
+      'ru': 'Ссылка для сброса пароля отправлена!',
+      'kk': 'Құпия сөзді қайта орнату сілтемесі жіберілді!',
+      'en': 'Password reset link sent!',
+    },
+    'error_user_not_found': {
+      'ru': 'Пользователь не найден',
+      'kk': 'Пайдаланушы табылмады',
+      'en': 'User not found',
+    },
+    'error_wrong_password': {
+      'ru': 'Неверный пароль',
+      'kk': 'Құпия сөз қате',
+      'en': 'Wrong password',
+    },
+    'error_network': {
+      'ru': 'Ошибка сети',
+      'kk': 'Желі қатесі',
+      'en': 'Network error',
+    },
+    'check_email': {
+      'ru': 'Проверьте почту',
+      'kk': 'Поштаңызды тексеріңіз',
+      'en': 'Check your email',
+    },
+    'username_hint': {
+      'ru': 'Имя пользователя (логин)',
+      'kk': 'Пайдаланушы аты (логин)',
+      'en': 'Username',
+    },
+    'username_taken': {
+      'ru': 'Этот логин уже занят',
+      'kk': 'Бұл логин бос емес',
+      'en': 'Username is already taken',
+    },
+    'login_id_hint': {
+      'ru': 'Email или Логин',
+      'kk': 'Email немесе Логин',
+      'en': 'Email or Username',
+    },
     'email_hint': {
       'ru': 'Электронная почта',
       'kk': 'Электрондық пошта',
@@ -237,9 +302,9 @@ class LanguageService {
       'en': 'Password',
     },
     'password_validation_error': {
-      'ru': 'Пароль должен быть > 8 символов, содержать буквы и цифры',
-      'kk': 'Құпия сөз 8 таңбадан көп болуы, әріптер мен сандардан тұруы керек',
-      'en': 'Password must be > 8 chars, include letters and numbers',
+      'ru': 'Мин. 8 символов: заглавная буква, цифра и спецсимвол (!@#...)',
+      'kk': 'Кемінде 8 таңба: бас әріп, сан және арнайы таңба (!@#...)',
+      'en': 'Min 8 chars: uppercase, digit and special char (!@#...)',
     },
     'invalid_email': {
       'ru': 'Введите корректный email',
@@ -250,6 +315,21 @@ class LanguageService {
       'ru': 'Письмо для подтверждения отправлено на почту!',
       'kk': 'Растау хаты поштаға жіберілді!',
       'en': 'Verification email has been sent!',
+    },
+    'verify_email_title': {
+      'ru': 'Подтвердите почту',
+      'kk': 'Поштаны растаңыз',
+      'en': 'Verify Your Email',
+    },
+    'verify_email_subtitle': {
+      'ru': 'Мы отправили письмо на {email}. Пожалуйста, перейдите по ссылке в письме, чтобы продолжить.',
+      'kk': 'Біз {email} поштасына хат жібердік. Жалғастыру үшін хаттағы сілтеме бойынша өтіңіз.',
+      'en': 'We sent an email to {email}. Please click the link in the email to continue.',
+    },
+    'resend_email': {
+      'ru': 'Отправить письмо еще раз',
+      'kk': 'Хатты қайта жіберу',
+      'en': 'Resend Email',
     },
     'email_not_verified': {
       'ru': 'Пожалуйста, подтвердите ваш email перед входом',
@@ -286,10 +366,45 @@ class LanguageService {
       'kk': 'Қате SMS-код',
       'en': 'Invalid SMS code',
     },
-    'error': {
-      'ru': 'Ошибка',
-      'kk': 'Қате',
-      'en': 'Error',
+    'delete_account': {
+      'ru': 'Удалить аккаунт',
+      'kk': 'Аккаунтты жою',
+      'en': 'Delete Account',
+    },
+    'delete_confirm_title': {
+      'ru': 'Вы уверены?',
+      'kk': 'Сенімдісіз бе?',
+      'en': 'Are you sure?',
+    },
+    'delete_confirm_desc': {
+      'ru': 'Это действие нельзя отменить. Все ваши данные и логин будут удалены навсегда.',
+      'kk': 'Бұл әрекетті болдырмау мүмкін емес. Барлық деректеріңіз бен логиніңіз біржола жойылады.',
+      'en': 'This action cannot be undone. All your data and username will be deleted permanently.',
+    },
+    'delete': {
+      'ru': 'Удалить',
+      'kk': 'Жою',
+      'en': 'Delete',
+    },
+    'enter_password_to_delete': {
+      'ru': 'Введите пароль для удаления',
+      'kk': 'Жою үшін құпия сөзді енгізіңіз',
+      'en': 'Enter password to delete',
+    },
+    'confirm_delete_button': {
+      'ru': 'Подтвердить удаление',
+      'kk': 'Жоюды растау',
+      'en': 'Confirm Deletion',
+    },
+    'password_label': {
+      'ru': 'Ваш пароль',
+      'kk': 'Құпия сөзіңіз',
+      'en': 'Your password',
+    },
+    'delete_account_step2': {
+      'ru': 'Последний шаг: введите пароль, чтобы мы убедились, что это вы.',
+      'kk': 'Соңғы қадам: бұл сіз екеніңізге көз жеткізу үшін құпия сөзді енгізіңіз.',
+      'en': 'Last step: enter your password so we know it\'s you.',
     },
 
     // === ПЕРВОНАЧАЛЬНАЯ НАСТРОЙКА (PROFILE SETUP) ===

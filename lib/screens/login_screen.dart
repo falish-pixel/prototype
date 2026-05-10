@@ -15,37 +15,104 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final AuthService _authService = AuthService();
   bool _isLoading = false;
+  bool _isPasswordVisible = false;
+  bool _showForgotPassword = false; // Состояние для переключения на форму восстановления
 
   // Контроллеры для ввода
-  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _loginIdController = TextEditingController(); 
+  final TextEditingController _emailController = TextEditingController();    
+  final TextEditingController _usernameController = TextEditingController(); 
   final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _forgotEmailController = TextEditingController(); // Новый контроллер
+  
   final _formKeyLogin = GlobalKey<FormState>();
   final _formKeyRegister = GlobalKey<FormState>();
+  final _formKeyForgot = GlobalKey<FormState>();
 
   @override
   void dispose() {
+    _loginIdController.dispose();
     _emailController.dispose();
+    _usernameController.dispose();
     _passwordController.dispose();
+    _forgotEmailController.dispose();
     super.dispose();
   }
 
-  // Валидация пароля: > 8 символов, буквы и цифры
-  String? _validatePassword(String? value) {
-    if (value == null || value.isEmpty) {
-      return LanguageService.tr('password_validation_error');
+  String _mapAuthError(String code) {
+    switch (code) {
+      case 'user-not-found': return LanguageService.tr('error_user_not_found');
+      case 'wrong-password': return LanguageService.tr('error_wrong_password');
+      case 'username-taken': return LanguageService.tr('username_taken');
+      case 'network-request-failed': return LanguageService.tr('error_network');
+      case 'email-not-verified': return LanguageService.tr('email_not_verified');
+      default: return code;
     }
-    bool hasLetters = value.contains(RegExp(r'[a-zA-Z]'));
-    bool hasDigits = value.contains(RegExp(r'[0-9]'));
-    if (value.length < 8 || !hasLetters || !hasDigits) {
-      return LanguageService.tr('password_validation_error');
-    }
-    return null;
   }
 
-  // Валидация Email
-  String? _validateEmail(String? value) {
-    if (value == null || value.isEmpty || !value.contains('@')) {
-      return LanguageService.tr('invalid_email');
+  // Логика отправки ссылки на сброс пароля
+  void _handleForgotPassword() async {
+    if (_formKeyForgot.currentState!.validate()) {
+      setState(() => _isLoading = true);
+      try {
+        await _authService.sendPasswordResetEmail(_forgotEmailController.text.trim());
+        _showSnackBar(LanguageService.tr('reset_link_sent'));
+        setState(() => _showForgotPassword = false); // Возвращаемся к логину
+      } catch (e) {
+        _showSnackBar(e.toString());
+      } finally {
+        if (mounted) setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  void _handleEmailSignIn() async {
+    if (_formKeyLogin.currentState!.validate()) {
+      setState(() => _isLoading = true);
+      try {
+        await _authService.signInWithIdentifier(
+          _loginIdController.text.trim(),
+          _passwordController.text.trim(),
+        );
+      } on FirebaseAuthException catch (e) {
+        _showSnackBar(_mapAuthError(e.code));
+      } catch (e) {
+        _showSnackBar(e.toString());
+      } finally {
+        if (mounted) setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  void _handleEmailSignUp() async {
+    if (_formKeyRegister.currentState!.validate()) {
+      setState(() => _isLoading = true);
+      try {
+        await _authService.signUpWithEmail(
+          email: _emailController.text.trim(),
+          password: _passwordController.text.trim(),
+          username: _usernameController.text.trim(),
+        );
+        _showSnackBar(LanguageService.tr('verification_sent'));
+      } on FirebaseAuthException catch (e) {
+        _showSnackBar(_mapAuthError(e.code));
+      } catch (e) {
+        _showSnackBar(e.toString());
+      } finally {
+        if (mounted) setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  String? _validatePassword(String? value) {
+    if (value == null || value.isEmpty) return LanguageService.tr('password_validation_error');
+    
+    bool hasUppercase = value.contains(RegExp(r'[A-Z]'));
+    bool hasDigits = value.contains(RegExp(r'[0-9]'));
+    bool hasSpecialCharacters = value.contains(RegExp(r'[!@#$%^&*(),.?":{}|<>]'));
+    
+    if (value.length < 8 || !hasUppercase || !hasDigits || !hasSpecialCharacters) {
+      return LanguageService.tr('password_validation_error');
     }
     return null;
   }
@@ -61,52 +128,8 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  void _handleEmailSignUp() async {
-    if (_formKeyRegister.currentState!.validate()) {
-      setState(() => _isLoading = true);
-      try {
-        await _authService.signUpWithEmail(
-          _emailController.text.trim(),
-          _passwordController.text.trim(),
-        );
-        _showSnackBar(LanguageService.tr('verification_sent'));
-      } on FirebaseAuthException catch (e) {
-        _showSnackBar(e.message ?? e.code);
-      } catch (e) {
-        _showSnackBar(e.toString());
-      } finally {
-        if (mounted) setState(() => _isLoading = false);
-      }
-    }
-  }
-
-  void _handleEmailSignIn() async {
-    if (_formKeyLogin.currentState!.validate()) {
-      setState(() => _isLoading = true);
-      try {
-        UserCredential? result = await _authService.signInWithEmail(
-          _emailController.text.trim(),
-          _passwordController.text.trim(),
-        );
-
-        if (result?.user != null && !result!.user!.emailVerified) {
-          _showSnackBar(LanguageService.tr('email_not_verified'));
-          // Опционально: можно выйти или просто предупредить
-        }
-      } on FirebaseAuthException catch (e) {
-        _showSnackBar(e.message ?? e.code);
-      } catch (e) {
-        _showSnackBar(e.toString());
-      } finally {
-        if (mounted) setState(() => _isLoading = false);
-      }
-    }
-  }
-
   void _showSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -121,7 +144,6 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Column(
               children: [
                 const SizedBox(height: 40),
-                // Логотип
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
@@ -131,13 +153,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: const Icon(Icons.restaurant_menu, size: 60, color: Colors.green),
                 ),
                 const SizedBox(height: 20),
-                Text(
-                  LanguageService.tr('app_title'),
-                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                ),
+                Text(LanguageService.tr('app_title'), style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 30),
-
-                // Вкладки переключения
+                // Показываем TabBar только если не открыта форма восстановления
+                if (!_showForgotPassword)
                 Container(
                   margin: const EdgeInsets.symmetric(horizontal: 24),
                   decoration: BoxDecoration(
@@ -146,10 +165,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   child: TabBar(
                     indicatorSize: TabBarIndicatorSize.tab,
-                    indicator: BoxDecoration(
-                      color: Colors.green,
-                      borderRadius: BorderRadius.circular(25),
-                    ),
+                    indicator: BoxDecoration(color: Colors.green, borderRadius: BorderRadius.circular(25)),
                     labelColor: Colors.white,
                     unselectedLabelColor: isDark ? Colors.grey[400] : Colors.grey[600],
                     dividerColor: Colors.transparent,
@@ -159,33 +175,17 @@ class _LoginScreenState extends State<LoginScreen> {
                     ],
                   ),
                 ),
-
                 const SizedBox(height: 20),
-
-                // Содержимое вкладок
                 SizedBox(
-                  height: 500, // Фиксированная высота для TabBarView внутри SingleChildScrollView
-                  child: TabBarView(
-                    children: [
-                      // --- ВКЛАДКА "ВХОД" ---
-                      _buildEmailAuthForm(
-                        formKey: _formKeyLogin,
-                        subtitle: LanguageService.tr('login_welcome'),
-                        buttonText: LanguageService.tr('enter'),
-                        onPressed: _handleEmailSignIn,
-                        isDark: isDark,
+                  height: 600,
+                  child: _showForgotPassword 
+                    ? _buildForgotPasswordForm(isDark) // Если нажали "Забыли пароль"
+                    : TabBarView(
+                        children: [
+                          _buildLoginForm(isDark),
+                          _buildRegisterForm(isDark),
+                        ],
                       ),
-
-                      // --- ВКЛАДКА "РЕГИСТРАЦИЯ" ---
-                      _buildEmailAuthForm(
-                        formKey: _formKeyRegister,
-                        subtitle: LanguageService.tr('register_welcome'),
-                        buttonText: LanguageService.tr('submit'),
-                        onPressed: _handleEmailSignUp,
-                        isDark: isDark,
-                      ),
-                    ],
-                  ),
                 ),
               ],
             ),
@@ -195,25 +195,106 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  Widget _buildEmailAuthForm({
-    required GlobalKey<FormState> formKey,
-    required String subtitle,
-    required String buttonText,
-    required VoidCallback onPressed,
-    required bool isDark,
-  }) {
+  Widget _buildLoginForm(bool isDark) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24.0),
       child: Form(
-        key: formKey,
+        key: _formKeyLogin,
+        child: Column(
+          children: [
+            Text(LanguageService.tr('login_welcome'), style: TextStyle(color: isDark ? Colors.grey[400] : Colors.grey[700])),
+            const SizedBox(height: 20),
+            TextFormField(
+              controller: _loginIdController,
+              decoration: InputDecoration(
+                labelText: LanguageService.tr('login_id_hint'),
+                prefixIcon: const Icon(Icons.person),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              validator: (v) => v!.isEmpty ? '?' : null,
+            ),
+            const SizedBox(height: 16),
+            _buildPasswordField(_passwordController),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () => setState(() => _showForgotPassword = true), // Переключаем экран
+                child: Text(LanguageService.tr('forgot_password'), style: const TextStyle(color: Colors.green)),
+              ),
+            ),
+            const SizedBox(height: 16),
+            _buildSubmitButton(LanguageService.tr('enter'), _handleEmailSignIn),
+            _buildSocialDivider(),
+            _buildGoogleButton(isDark),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // НОВАЯ ФОРМА ВОССТАНОВЛЕНИЯ ПАРОЛЯ
+  Widget _buildForgotPasswordForm(bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24.0),
+      child: Form(
+        key: _formKeyForgot,
         child: Column(
           children: [
             Text(
-              subtitle,
-              style: TextStyle(color: isDark ? Colors.grey[400] : Colors.grey[700]),
-              textAlign: TextAlign.center,
+              LanguageService.tr('forgot_password_title'),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
+            const SizedBox(height: 10),
+            Text(
+              LanguageService.tr('forgot_password_subtitle'),
+              textAlign: TextAlign.center,
+              style: TextStyle(color: isDark ? Colors.grey[400] : Colors.grey[700]),
+            ),
+            const SizedBox(height: 30),
+            TextFormField(
+              controller: _forgotEmailController,
+              decoration: InputDecoration(
+                labelText: LanguageService.tr('email_hint'),
+                prefixIcon: const Icon(Icons.email),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              validator: (v) => !v!.contains('@') ? LanguageService.tr('invalid_email') : null,
+            ),
+            const SizedBox(height: 24),
+            _buildSubmitButton(LanguageService.tr('send'), _handleForgotPassword),
+            const SizedBox(height: 16),
+            TextButton(
+              onPressed: () => setState(() => _showForgotPassword = false),
+              child: Text(
+                LanguageService.tr('back_to_login'),
+                style: const TextStyle(color: Colors.grey),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRegisterForm(bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24.0),
+      child: Form(
+        key: _formKeyRegister,
+        child: Column(
+          children: [
+            Text(LanguageService.tr('register_welcome'), style: TextStyle(color: isDark ? Colors.grey[400] : Colors.grey[700])),
             const SizedBox(height: 20),
+            TextFormField(
+              controller: _usernameController,
+              decoration: InputDecoration(
+                labelText: LanguageService.tr('username_hint'),
+                prefixIcon: const Icon(Icons.alternate_email),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              validator: (v) => v!.length < 3 ? 'Too short' : null,
+            ),
+            const SizedBox(height: 16),
             TextFormField(
               controller: _emailController,
               decoration: InputDecoration(
@@ -221,61 +302,76 @@ class _LoginScreenState extends State<LoginScreen> {
                 prefixIcon: const Icon(Icons.email),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
               ),
-              validator: _validateEmail,
-              keyboardType: TextInputType.emailAddress,
+              validator: (v) => !v!.contains('@') ? LanguageService.tr('invalid_email') : null,
             ),
             const SizedBox(height: 16),
-            TextFormField(
-              controller: _passwordController,
-              decoration: InputDecoration(
-                labelText: LanguageService.tr('password_hint'),
-                prefixIcon: const Icon(Icons.lock),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              obscureText: true,
-              validator: _validatePassword,
-            ),
+            _buildPasswordField(_passwordController),
             const SizedBox(height: 24),
-            if (_isLoading)
-              const CircularProgressIndicator(color: Colors.green)
-            else ...[
-              ElevatedButton(
-                onPressed: onPressed,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size(double.infinity, 50),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                child: Text(buttonText),
-              ),
-              const SizedBox(height: 16),
-              const Row(
-                children: [
-                  Expanded(child: Divider()),
-                  Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 10),
-                    child: Text("OR", style: TextStyle(color: Colors.grey)),
-                  ),
-                  Expanded(child: Divider()),
-                ],
-              ),
-              const SizedBox(height: 16),
-              ElevatedButton.icon(
-                onPressed: _handleGoogleSignIn,
-                icon: const Icon(Icons.login),
-                label: Text(LanguageService.tr('login_google')),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: isDark ? Colors.grey[800] : Colors.white,
-                  foregroundColor: isDark ? Colors.white : Colors.black,
-                  minimumSize: const Size(double.infinity, 50),
-                  elevation: 2,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              ),
-            ],
+            _buildSubmitButton(LanguageService.tr('submit'), _handleEmailSignUp),
+            _buildSocialDivider(),
+            _buildGoogleButton(isDark),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildPasswordField(TextEditingController controller) {
+    return TextFormField(
+      controller: controller,
+      obscureText: !_isPasswordVisible,
+      decoration: InputDecoration(
+        labelText: LanguageService.tr('password_hint'),
+        prefixIcon: const Icon(Icons.lock),
+        suffixIcon: IconButton(
+          icon: Icon(_isPasswordVisible ? Icons.visibility : Icons.visibility_off),
+          onPressed: () => setState(() => _isPasswordVisible = !_isPasswordVisible),
+        ),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      validator: _validatePassword,
+    );
+  }
+
+  Widget _buildSubmitButton(String text, VoidCallback onPressed) {
+    return _isLoading
+        ? const CircularProgressIndicator(color: Colors.green)
+        : ElevatedButton(
+            onPressed: onPressed,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+              minimumSize: const Size(double.infinity, 50),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: Text(text),
+          );
+  }
+
+  Widget _buildSocialDivider() {
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 20),
+      child: Row(
+        children: [
+          Expanded(child: Divider()),
+          Padding(padding: EdgeInsets.symmetric(horizontal: 10), child: Text("OR", style: TextStyle(color: Colors.grey))),
+          Expanded(child: Divider()),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGoogleButton(bool isDark) {
+    return ElevatedButton.icon(
+      onPressed: _handleGoogleSignIn,
+      icon: const Icon(Icons.login),
+      label: Text(LanguageService.tr('login_google')),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: isDark ? Colors.grey[800] : Colors.white,
+        foregroundColor: isDark ? Colors.white : Colors.black,
+        minimumSize: const Size(double.infinity, 50),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        elevation: 2,
       ),
     );
   }
