@@ -116,6 +116,11 @@ class LanguageService {
 
     // === СКАНЕР И РЕЗУЛЬТАТЫ ===
     'results_title': {'ru': 'Результат', 'kk': 'Нәтиже', 'en': 'Results'},
+    'no_results': {
+      'ru': 'Ничего не найдено',
+      'kk': 'Ештеңе табылмады',
+      'en': 'No results found',
+    },
     'products_label': {'ru': 'Продукты:', 'kk': 'Өнімдер:', 'en': 'Ingredients:'},
     'edit': {'ru': 'Изменить', 'kk': 'Өзгерту', 'en': 'Edit'},
     'chef_thinking': {'ru': 'Шеф думает...', 'kk': 'Шеф ойланып жатыр...', 'en': 'Chef is thinking...'},
@@ -169,8 +174,15 @@ class LanguageService {
       'kk': 'РЕЦЕПТТЕР ВЕГЕТЕРИАНДЫҚ БОЛУЫ ТИІС (ет пен балықсыз, бірақ жұмыртқа мен сүтке болады).',
     },
     // Добавьте это в существующий map _localizedValues
+    'min': {'ru': 'мин', 'kk': 'мин', 'en': 'min'},
     'today': {'ru': 'Сегодня', 'kk': 'Бүгін', 'en': 'Today'},
     'kcal': {'ru': 'ккал', 'kk': 'ккал', 'en': 'kcal'},
+    'breakfast': {'ru': 'Завтрак', 'kk': 'Таңғы ас', 'en': 'Breakfast'},
+    'lunch': {'ru': 'Обед', 'kk': 'Түскі ас', 'en': 'Lunch'},
+    'dinner': {'ru': 'Ужин', 'kk': 'Кешкі ас', 'en': 'Dinner'},
+    'dessert': {'ru': 'Десерт', 'kk': 'Десерт', 'en': 'Dessert'},
+    'snack': {'ru': 'Перекус', 'kk': 'Тіскебасар', 'en': 'Snack'},
+    'all': {'ru': 'Все', 'kk': 'Барлығы', 'en': 'All'},
     'my_recipes': {'ru': 'Мои рецепты', 'kk': 'Менің рецепттерім', 'en': 'My Recipes'}, // Если не было
     'search': {'ru': 'Поиск', 'kk': 'Іздеу', 'en': 'Search'}, // Если не было
     // Добавить в существующий map:
@@ -178,6 +190,16 @@ class LanguageService {
       'ru': 'Я приготовил это',
       'kk': 'Мен мұны дайындадым',
       'en': 'I cooked this'
+    },
+    'recipe_of_day': {
+      'ru': 'Рецепт дня',
+      'kk': 'Күн рецепті',
+      'en': 'Recipe of the Day'
+    },
+    'try_now': {
+      'ru': 'Попробовать',
+      'kk': 'Қазір байқап көру',
+      'en': 'Try now'
     },
     'calories_added': {
       'ru': 'Калории добавлены в трекер!',

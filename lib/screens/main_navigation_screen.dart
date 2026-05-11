@@ -3,6 +3,7 @@ import 'home_screen.dart';
 import 'favorites_screen.dart';
 import 'settings_screen.dart';
 import 'profile_screen.dart';
+import 'search_screen.dart';
 import '../services/language_service.dart';
 
 class MainNavigationScreen extends StatefulWidget {
@@ -17,7 +18,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   final List<Widget> _screens = [
     const HomeScreen(),
-    const SearchPlaceholderScreen(), // Заглушка для поиска
+    const SearchScreen(),
     const FavoritesScreen(),
     const SettingsScreen(),
     const ProfileScreen(),
@@ -70,27 +71,4 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   }
 }
 
-// Временная заглушка для экрана поиска
-class SearchPlaceholderScreen extends StatelessWidget {
-  const SearchPlaceholderScreen({super.key});
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(LanguageService.tr('search'))),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.search, size: 80, color: Colors.grey),
-            const SizedBox(height: 16),
-            Text(
-              "Тут будет поиск по рецептам",
-              style: TextStyle(color: Colors.grey[600], fontSize: 18),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}

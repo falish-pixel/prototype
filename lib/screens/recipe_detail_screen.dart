@@ -164,8 +164,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final name = widget.recipe['name'] ?? 'Food';
-    final int lockId = (name.hashCode.abs() % 1000);
-    final imageUrl = 'https://loremflickr.com/320/240/food,dish?lock=$lockId';
+    final imageUrl = widget.recipe['imageUrl'] ?? 'https://loremflickr.com/320/240/food,dish?lock=${name.hashCode.abs() % 1000}';
 
     final int protein = _parseInt(widget.recipe['protein']);
     final int fats = _parseInt(widget.recipe['fats']);
@@ -205,9 +204,9 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
 
                   Row(
                     children: [
-                      _buildInfoChip(Icons.timer_outlined, widget.recipe['time'] ?? 'N/A', Colors.blue),
+                      _buildInfoChip(Icons.timer_outlined, widget.recipe['time']?.toString() ?? 'N/A', Colors.blue),
                       const SizedBox(width: 12),
-                      _buildInfoChip(Icons.local_fire_department_rounded, widget.recipe['kcal'] ?? 'N/A', Colors.orange),
+                      _buildInfoChip(Icons.local_fire_department_rounded, widget.recipe['kcal']?.toString() ?? 'N/A', Colors.orange),
                     ],
                   ),
 

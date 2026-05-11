@@ -2,10 +2,12 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:camera/camera.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_vision/flutter_vision.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'recipe_detail_screen.dart';
 import '../services/language_service.dart';
 import '../services/ingredient_service.dart';
@@ -25,7 +27,7 @@ class AiRecipesScreen extends StatefulWidget {
 }
 
 class _AiRecipesScreenState extends State<AiRecipesScreen> {
-  final String apiKey = 'AIzaSyD-ihmwUJsL_P2N2u3uP8HrQOyJD0aOi0U';
+  final String apiKey = 'AIzaSyDsKxiLk34XzwwTBrIBy-nZpgGbD9G9zRc';
 
   List<Map<String, dynamic>> recipes = [];
   bool isLoading = true;
@@ -182,7 +184,7 @@ class _AiRecipesScreenState extends State<AiRecipesScreen> {
     super.dispose();
   }
 
-  // --- ГЕНЕРАЦИЯ РЕЦЕПТОВ ЧЕРЕЗ GEMINI ---
+  // --- ГЕНЕРАЦИЯ РЕЦЕПТОВ ЧЕРЕЗ GEMINI (ФИЛЬТР БАЗЫ ДАННЫХ) ---
   Future<void> _generateRecipes({bool isInitial = false}) async {
     setState(() {
       isLoading = true;
@@ -197,96 +199,147 @@ class _AiRecipesScreenState extends State<AiRecipesScreen> {
       bool isVegan = prefs.getBool('isVegan') ?? false;
       bool isVegetarian = prefs.getBool('isVegetarian') ?? false;
 
+      // 1. ПОЛУЧАЕМ ВСЕ РЕЦЕПТЫ ИЗ FIRESTORE (или кеша)
+      final QuerySnapshot recipesSnapshot = await FirebaseFirestore.instance.collection('recipes').get();
+      
+      // 2. ЛОКАЛЬНАЯ ПРЕ-ФИЛЬТРАЦИЯ (Top 40 кандидатов)
+      // Это решает проблему "Chef thinking too long" при 500+ рецептах
+      List<String> userIngreds = _currentIngredients.toLowerCase().split(RegExp(r'[,\s]+')).where((s) => s.length > 2).toList();
+      
+      List<DocumentSnapshot> allDocs = recipesSnapshot.docs;
+      
+      // Сортируем по количеству совпадений ингредиентов
+      allDocs.sort((a, b) {
+        final dataA = a.data() as Map<String, dynamic>;
+        final dataB = b.data() as Map<String, dynamic>;
+        
+        String getIngStr(dynamic ing) {
+          if (ing is List) return ing.join(' ').toLowerCase();
+          if (ing is String) return ing.toLowerCase();
+          return '';
+        }
+
+        final ingA = getIngStr(dataA['ingredients']);
+        final ingB = getIngStr(dataB['ingredients']);
+        
+        int scoreA = userIngreds.where((ui) => ingA.contains(ui)).length;
+        int scoreB = userIngreds.where((ui) => ingB.contains(ui)).length;
+        return scoreB.compareTo(scoreA); // По убыванию
+      });
+
+      // Берем только топ 40
+      List<DocumentSnapshot> candidates = allDocs.take(40).toList();
+
+      // Формируем краткий список для Gemini
+      List<Map<String, dynamic>> dbRecipesShort = candidates.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        return {
+          "id": doc.id,
+          "name": data['name'],
+          "ingredients": data['ingredients'],
+        };
+      }).toList();
+
       List<String> restrictions = [];
-      if (glutenFree) restrictions.add("БЕЗ ГЛЮТЕНА/GLUTEN FREE");
-      if (lactoseFree) restrictions.add("БЕЗ ЛАКТОЗЫ/LACTOSE FREE");
-      if (nutAllergy) restrictions.add("БЕЗ ОРЕХОВ/NUT FREE");
+      if (glutenFree) restrictions.add("БЕЗ ГЛЮТЕНА");
+      if (lactoseFree) restrictions.add("БЕЗ ЛАКТОЗЫ");
+      if (nutAllergy) restrictions.add("БЕЗ ОРЕХОВ");
 
       String dietText = "";
-      if (isVegan) {
-        dietText = LanguageService.tr('prompt_vegan');
-      } else if (isVegetarian) {
-        dietText = LanguageService.tr('prompt_vegetarian');
-      }
+      if (isVegan) dietText = "ТОЛЬКО ВЕГАНСКИЕ РЕЦЕПТЫ.";
+      else if (isVegetarian) dietText = "ТОЛЬКО ВЕГЕТАРИАНСКИЕ РЕЦЕПТЫ.";
 
-      String restrictionText = restrictions.isEmpty
-          ? dietText
-          : "$dietText УЧТИ ДОПОЛНИТЕЛЬНЫЕ ОГРАНИЧЕНИЯ: ${restrictions.join(", ")}.";
-      String langInstruction = LanguageService.tr('prompt_lang');
+      // Используем gemini-1.5-flash (самая быстрая для таких задач)
+      final model = GenerativeModel(model: 'gemini-2.5-flash-lite', apiKey: apiKey);
 
-      // Используем gemini-2.0-flash по требованию пользователя
-      final model = GenerativeModel(model: 'gemini-2.5-flash', apiKey: apiKey);
-
-      final structurePrompt = '''
-      Ответ верни СТРОГО в формате JSON объекта (без markdown ```json).
-      Убедись, что поля protein, fats, carbs содержат ТОЛЬКО ЧИСЛА (пример: 20, а не "20г").
-      ВАЖНО: Поле "detected_ingredients" заполни названиями продуктов на том языке, на котором даешь ответ.
-      Структура ответа:
-      {
-        "detected_ingredients": ["продукт 1", "продукт 2"], 
-        "recipes": [
-           {
-             "name": "Название блюда",
-             "time": "Время (например: 30 мин)",
-             "kcal": "Ккал (например: 400 ккал)",
-             "protein": 20,
-             "fats": 15,
-             "carbs": 50,
-             "ingredients": ["список", "продуктов"],
-             "steps": ["шаг 1", "шаг 2"]
-           }
-        ]
-      }
-      ''';
-
-      // ТЕПЕРЬ МЫ ВСЕГДА ОТПРАВЛЯЕМ ТЕКСТ, ТАК КАК ПРОДУКТЫ УЖЕ НАШЛА YOLO
       final prompt = '''
-      Список найденных продуктов: $_currentIngredients.
-      $langInstruction
-      Переведи названия этих продуктов и верни их в поле "detected_ingredients".
-      Если список пуст, попробуй определить продукты сам по контексту "кухня".
-      $restrictionText
-      Предложи 6 рецепта.
-      $structurePrompt
+      Ты - профессиональный шеф-повар. Твоя задача: выбрать из предоставленной базы данных рецептов лучшие варианты на основе имеющихся у пользователя продуктов.
+
+      Продукты пользователя: $_currentIngredients.
+      
+      Ограничения: $dietText ${restrictions.join(", ")}.
+      
+      База данных рецептов (ID | Название | Ингредиенты):
+      ${jsonEncode(dbRecipesShort)}
+
+      Инструкция:
+      1. Проанализируй ингредиенты в базе.
+      2. Выбери МАКСИМУМ 3 наиболее подходящих рецепта, которые можно приготовить из продуктов пользователя (или с минимальным добавлением базовых специй/масла).
+      3. Учти диетические ограничения.
+      4. В поле "detected_ingredients" верни переведенный список продуктов пользователя.
+      
+      Ответ верни СТРОГО в формате JSON:
+      {
+        "detected_ingredients": ["продукт 1", "продукт 2"],
+        "selected_ids": ["id_1", "id_2", "id_3"]
+      }
       ''';
 
-      final response = await model.generateContent([Content.text(prompt)]);
-
-      if (response.text != null) {
-        String cleanJson = response.text!
-            .replaceAll('```json', '')
-            .replaceAll('```', '')
-            .trim();
-        int startIndex = cleanJson.indexOf('{');
-        int endIndex = cleanJson.lastIndexOf('}');
-        if (startIndex != -1 && endIndex != -1) {
-          cleanJson = cleanJson.substring(startIndex, endIndex + 1);
+      GenerateContentResponse? response;
+      int retryCount = 0;
+      while (retryCount < 3) {
+        try {
+          response = await model.generateContent([Content.text(prompt)]);
+          break;
+        } catch (e) {
+          if (e.toString().contains('503') && retryCount < 2) {
+            retryCount++;
+            await Future.delayed(Duration(seconds: 2 * retryCount));
+            continue;
+          }
+          rethrow;
         }
-        final data = jsonDecode(cleanJson);
+      }
 
+      if (response != null && response.text != null) {
+        String text = response.text!;
+        // Более надежное извлечение JSON: ищем первую { и последнюю }
+        int startIndex = text.indexOf('{');
+        int endIndex = text.lastIndexOf('}');
+        
+        if (startIndex == -1 || endIndex == -1) {
+          throw Exception("Invalid JSON format in Gemini response");
+        }
+        
+        String cleanJson = text.substring(startIndex, endIndex + 1);
+        
+        final data = jsonDecode(cleanJson);
+        List<String> selectedIds = List<String>.from(data['selected_ids'] ?? []);
         List<dynamic> rawIngredients = data['detected_ingredients'] ?? [];
-        List<String> newIngredientsList = rawIngredients.map((e) => e.toString()).toList();
-        List<dynamic> rawRecipes = data['recipes'] ?? [];
-        List<Map<String, dynamic>> newRecipes = List<Map<String, dynamic>>.from(rawRecipes);
+        
+        // 2. ПОЛУЧАЕМ ПОЛНЫЕ ДАННЫЕ ВЫБРАННЫХ РЕЦЕПТОВ
+        List<Map<String, dynamic>> finalRecipes = [];
+        for (String id in selectedIds) {
+          final doc = recipesSnapshot.docs.cast<DocumentSnapshot?>().firstWhere(
+            (d) => d?.id == id,
+            orElse: () => null,
+          );
+          if (doc != null) {
+            final docData = doc.data() as Map<String, dynamic>;
+            docData['id'] = doc.id;
+            finalRecipes.add(docData);
+          }
+        }
 
         if (mounted) {
           setState(() {
-            // Если YOLO ничего не нашла, берем то, что нашел Gemini
-            if (_currentIngredients.isEmpty) {
-              _currentIngredients = newIngredientsList.join(", ");
+            if (_currentIngredients.isEmpty && rawIngredients.isNotEmpty) {
+              _currentIngredients = rawIngredients.join(", ");
             }
-            recipes = newRecipes;
+            recipes = finalRecipes;
             isLoading = false;
           });
         }
       } else {
-        throw Exception("Empty response from AI");
+        throw Exception("Empty response from Gemini");
       }
-    } catch (e) {
+    } catch (e, stack) {
+      debugPrint("Error in _generateRecipes: $e");
+      debugPrint("Stack trace: $stack");
       if (mounted) {
         setState(() {
           isLoading = false;
-          errorMessage = "Error: $e";
+          errorMessage = "Ошибка при поиске по базе рецептов: ${e.toString()}";
         });
       }
     }
@@ -517,13 +570,26 @@ class _AiRecipesScreenState extends State<AiRecipesScreen> {
       itemCount: recipes.length,
       itemBuilder: (context, index) {
         final recipe = recipes[index];
+        final imageUrl = recipe['imageUrl'] ?? "";
+
         return Card(
           elevation: 4,
           margin: const EdgeInsets.only(bottom: 15),
           child: ListTile(
-            leading: const Icon(Icons.restaurant_menu, color: Colors.green),
+            leading: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: imageUrl.isNotEmpty
+                  ? CachedNetworkImage(
+                      imageUrl: imageUrl,
+                      width: 50, height: 50, fit: BoxFit.cover,
+                      memCacheWidth: 100, memCacheHeight: 100,
+                      placeholder: (context, url) => Container(color: Colors.grey[200]),
+                      errorWidget: (context, url, error) => const Icon(Icons.restaurant, color: Colors.green),
+                    )
+                  : const Icon(Icons.restaurant, color: Colors.green),
+            ),
             title: Text(recipe['name'] ?? ''),
-            subtitle: Text("${recipe['time']} • ${recipe['kcal']}"),
+            subtitle: Text("${recipe['time']} мин • ${recipe['kcal']} ккал"),
             trailing: const Icon(Icons.arrow_forward_ios, size: 16),
             onTap: () {
               Navigator.push(

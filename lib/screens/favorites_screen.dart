@@ -46,30 +46,16 @@ class FavoritesScreen extends StatelessWidget {
             itemCount: docs.length,
             itemBuilder: (context, index) {
               final data = docs[index].data() as Map<String, dynamic>;
-              final recipe = {
-                'name': data['name'] ?? 'No Name',
-                'time': data['time'] ?? '',
-                'kcal': data['kcal'] ?? '',
-                // === ДОБАВЛЯЕМ ЭТИ СТРОКИ ===
-                'protein': data['protein'] ?? 0,
-                'fats': data['fats'] ?? 0,
-                'carbs': data['carbs'] ?? 0,
-                // ============================
-                'ingredients': data['ingredients'] ?? [],
-                'steps': data['steps'] ?? [],
-              };
-
-              final String name = recipe['name'].toString();
-
-              // Генерируем уникальный ID для картинки на основе названия
-              final int lockId = name.hashCode;
-
-              // ИСПОЛЬЗУЕМ LOREMFLICKR (Реальные фото еды)
-              final imageUrl = 'https://loremflickr.com/320/240/food,dish?lock=$lockId';
+              final recipe = Map<String, dynamic>.from(data);
+              recipe['id'] = docs[index].id;
+              
+              final String name = recipe['name']?.toString() ?? 'No Name';
+              final String imageUrl = recipe['imageUrl'] ?? 'https://loremflickr.com/320/240/food,dish?lock=${name.hashCode.abs() % 1000}';
 
               return Card(
                 elevation: 2,
                 margin: const EdgeInsets.only(bottom: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 child: ListTile(
                   contentPadding: const EdgeInsets.all(8),
                   leading: ClipRRect(
@@ -78,6 +64,7 @@ class FavoritesScreen extends StatelessWidget {
                       imageUrl: imageUrl,
                       width: 60, height: 60,
                       fit: BoxFit.cover,
+                      memCacheWidth: 120, memCacheHeight: 120,
                       placeholder: (context, url) => Container(
                           width: 60, height: 60,
                           color: Colors.grey[200],
@@ -86,9 +73,9 @@ class FavoritesScreen extends StatelessWidget {
                       errorWidget: (context, url, error) => const Icon(Icons.error),
                     ),
                   ),
-                  title: Text(name),
-                  subtitle: Text("${recipe['time']} • ${recipe['kcal']}"),
-                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                  title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: Text("${recipe['time'] ?? '??'} ${LanguageService.tr('min')} • ${recipe['kcal'] ?? '??'} ${LanguageService.tr('kcal')}"),
+                  trailing: const Icon(Icons.arrow_forward_ios, size: 14),
                   onTap: () {
                     Navigator.push(context, MaterialPageRoute(
                       builder: (context) => RecipeDetailScreen(recipe: recipe),

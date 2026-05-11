@@ -2,15 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-// ВАЖНО: Эта строка нужна для графиков. Если она подчеркнута красным - сделайте "flutter pub get"
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 import 'scan_screen.dart';
 import 'favorites_screen.dart';
+import 'recipe_detail_screen.dart';
 import '../services/language_service.dart';
 import '../services/calorie_service.dart';
-
 import '../services/user_service.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -179,6 +179,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                 ),
               ),
+
+              // --- РЕЦЕПТ ДНЯ ---
+              _buildRecipeOfTheDay(cardColor, primaryColor, isDark),
+
               const SizedBox(height: 80),
             ],
           ),
@@ -191,6 +195,113 @@ class _HomeScreenState extends State<HomeScreen> {
         backgroundColor: primaryColor,
         child: const Icon(Icons.camera_alt_rounded, color: Colors.white),
       ),
+    );
+  }
+
+  // --- РЕЦЕПТ ДНЯ ---
+  Widget _buildRecipeOfTheDay(Color cardColor, Color primaryColor, bool isDark) {
+    return FutureBuilder<QuerySnapshot>(
+      // Берем 20 рецептов и выбираем один на основе текущей даты
+      future: FirebaseFirestore.instance.collection('recipes').limit(20).get(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) return const SizedBox.shrink();
+
+        final docs = snapshot.data!.docs;
+        final daySeed = DateTime.now().day + DateTime.now().month;
+        final index = daySeed % docs.length;
+        final doc = docs[index];
+        final recipe = doc.data() as Map<String, dynamic>;
+        recipe['id'] = doc.id;
+
+        final imageUrl = recipe['imageUrl'] ?? "";
+
+        return Container(
+          width: double.infinity,
+          margin: const EdgeInsets.only(top: 30),
+          decoration: BoxDecoration(
+            color: cardColor,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 15,
+                offset: const Offset(0, 5),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: Row(
+                  children: [
+                    const Icon(Icons.auto_awesome, color: Colors.orange, size: 24),
+                    const SizedBox(width: 10),
+                    Text(
+                      LanguageService.tr('recipe_of_day'),
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+              ),
+              InkWell(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => RecipeDetailScreen(recipe: recipe)),
+                  );
+                },
+                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(24)),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (imageUrl.isNotEmpty)
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(0),
+                        child: CachedNetworkImage(
+                          imageUrl: imageUrl,
+                          height: 180,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                          memCacheHeight: 400,
+                          placeholder: (context, url) => Container(color: Colors.grey[200], height: 180),
+                          errorWidget: (context, url, error) => Container(color: Colors.grey[200], height: 180, child: const Icon(Icons.restaurant)),
+                        ),
+                      ),
+                    Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            recipe['name'] ?? '',
+                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              const Icon(Icons.timer_outlined, size: 16, color: Colors.grey),
+                              const SizedBox(width: 4),
+                              Text("${recipe['time']} ${LanguageService.tr('min')}", style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                              const SizedBox(width: 16),
+                              const Icon(Icons.local_fire_department_rounded, size: 16, color: Colors.orange),
+                              const SizedBox(width: 4),
+                              Text("${recipe['kcal']} ${LanguageService.tr('kcal')}", style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
