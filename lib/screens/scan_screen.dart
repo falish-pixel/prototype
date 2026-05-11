@@ -1,10 +1,14 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
+import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_vision/flutter_vision.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'recipe_detail_screen.dart';
 import '../services/language_service.dart';
+import '../services/ingredient_service.dart';
 
 class AiRecipesScreen extends StatefulWidget {
   final String? imagePath;
@@ -21,25 +25,165 @@ class AiRecipesScreen extends StatefulWidget {
 }
 
 class _AiRecipesScreenState extends State<AiRecipesScreen> {
-  // Ваш API ключ (лучше перенести в .env, но пока оставляем здесь)
-  final String apiKey = 'AIzaSyB7glf-2LcZTTbmF8mqmV3bm1P3iAAvfqA';
+  final String apiKey = 'AIzaSyANmbsTSLyDDtb6uK43mGy4sfb1NeMU5gM';
 
   List<Map<String, dynamic>> recipes = [];
   bool isLoading = true;
   String? errorMessage;
   String _currentIngredients = "";
 
+  late CameraController controller;
+  late FlutterVision vision;
+  List<Map<String, dynamic>> yoloResults = [];
+  bool isLoaded = false;
+  bool isDetecting = false;
+  bool showCamera = false;
+  Set<String> detectedTags = {};
+
   @override
   void initState() {
     super.initState();
+    vision = FlutterVision();
+    
     if (widget.ingredientsInput != null) {
       _currentIngredients = widget.ingredientsInput!;
+      _generateRecipes(isInitial: true);
+    } else if (widget.imagePath != null) {
+      // Если передано фото, сначала распознаем его локально
+      _processStaticImage();
+    } else {
+      _initCameraAndVision();
     }
-    _generateRecipes(isInitial: true);
   }
 
+  // --- ЛОГИКА ДЛЯ СТАТИЧЕСКОГО ФОТО (ИЗ ГАЛЕРЕИ ИЛИ ПОСЛЕ ФОТО) ---
+  Future<void> _processStaticImage() async {
+    setState(() {
+      isLoading = true;
+      errorMessage = null;
+    });
+
+    try {
+      // Загружаем модель, если еще не загружена
+      await vision.loadYoloModel(
+        modelPath: 'assets/best.tflite',
+        labels: 'assets/labels.txt',
+        modelVersion: "yolov8",
+        numThreads: 2,
+        useGpu: true,
+      );
+
+      // Читаем байты изображения и получаем его размеры
+      final Uint8List bytes = await File(widget.imagePath!).readAsBytes();
+      final decodedImage = await decodeImageFromList(bytes);
+
+      // Распознаем продукты на фото локально!
+      final result = await vision.yoloOnImage(
+        bytesList: bytes,
+        imageHeight: decodedImage.height,
+        imageWidth: decodedImage.width,
+        iouThreshold: 0.4,
+        confThreshold: 0.3, // Чуть ниже порог для статичных фото
+        classThreshold: 0.5,
+      );
+
+      if (result.isNotEmpty) {
+        Set<String> localTags = result.map((e) => e['tag'].toString()).toSet();
+        _currentIngredients = localTags.map((tag) => IngredientService.translate(tag)).join(", ");
+      } else {
+        // Если ничего не нашли, оставим пустым или попросим Gemini найти
+        _currentIngredients = "";
+      }
+
+      // Теперь идем в Gemini за рецептами
+      await _generateRecipes(isInitial: true);
+    } catch (e) {
+      setState(() {
+        isLoading = false;
+        errorMessage = "Error analyzing image: $e";
+      });
+    }
+  }
+
+  // --- ЛОГИКА КАМЕРЫ В РЕАЛЬНОМ ВРЕМЕНИ ---
+  Future<void> _initCameraAndVision() async {
+    final cameras = await availableCameras();
+    if (cameras.isEmpty) return;
+
+    controller = CameraController(cameras[0], ResolutionPreset.medium, enableAudio: false);
+    await controller.initialize();
+
+    await vision.loadYoloModel(
+      modelPath: 'assets/best.tflite',
+      labels: 'assets/labels.txt',
+      modelVersion: "yolov8",
+      numThreads: 2,
+      useGpu: true,
+    );
+
+    setState(() {
+      isLoaded = true;
+      showCamera = true;
+      isLoading = false;
+    });
+  }
+
+  Future<void> _startDetection() async {
+    if (!controller.value.isStreamingImages) {
+      await controller.startImageStream((image) {
+        if (!isDetecting) {
+          _yoloOnFrame(image);
+        }
+      });
+    }
+  }
+
+  Future<void> _yoloOnFrame(CameraImage image) async {
+    isDetecting = true;
+    final result = await vision.yoloOnFrame(
+      bytesList: image.planes.map((plane) => plane.bytes).toList(),
+      imageHeight: image.height,
+      imageWidth: image.width,
+      iouThreshold: 0.4,
+      confThreshold: 0.4,
+      classThreshold: 0.5,
+    );
+    if (result.isNotEmpty) {
+      setState(() {
+        yoloResults = result;
+        for (var res in result) {
+          detectedTags.add(res['tag']);
+        }
+      });
+    }
+    isDetecting = false;
+  }
+
+  Future<void> _stopDetection() async {
+    if (controller.value.isStreamingImages) {
+      await controller.stopImageStream();
+    }
+    setState(() {
+      yoloResults.clear();
+      showCamera = false;
+      isLoading = true;
+      _currentIngredients = detectedTags.map((tag) => IngredientService.translate(tag)).join(", ");
+    });
+    
+    _generateRecipes(isInitial: false);
+  }
+
+  @override
+  void dispose() {
+    if (showCamera) {
+      controller.dispose();
+      vision.closeYoloModel();
+    }
+    super.dispose();
+  }
+
+  // --- ГЕНЕРАЦИЯ РЕЦЕПТОВ ЧЕРЕЗ GEMINI ---
   Future<void> _generateRecipes({bool isInitial = false}) async {
-    // ... (логика генерации осталась без изменений)
     setState(() {
       isLoading = true;
       errorMessage = null;
@@ -70,11 +214,13 @@ class _AiRecipesScreenState extends State<AiRecipesScreen> {
           : "$dietText УЧТИ ДОПОЛНИТЕЛЬНЫЕ ОГРАНИЧЕНИЯ: ${restrictions.join(", ")}.";
       String langInstruction = LanguageService.tr('prompt_lang');
 
+      // Используем gemini-2.0-flash по требованию пользователя
       final model = GenerativeModel(model: 'gemini-2.5-flash', apiKey: apiKey);
 
       final structurePrompt = '''
       Ответ верни СТРОГО в формате JSON объекта (без markdown ```json).
       Убедись, что поля protein, fats, carbs содержат ТОЛЬКО ЧИСЛА (пример: 20, а не "20г").
+      ВАЖНО: Поле "detected_ingredients" заполни названиями продуктов на том языке, на котором даешь ответ.
       Структура ответа:
       {
         "detected_ingredients": ["продукт 1", "продукт 2"], 
@@ -93,31 +239,18 @@ class _AiRecipesScreenState extends State<AiRecipesScreen> {
       }
       ''';
 
-      GenerateContentResponse response;
+      // ТЕПЕРЬ МЫ ВСЕГДА ОТПРАВЛЯЕМ ТЕКСТ, ТАК КАК ПРОДУКТЫ УЖЕ НАШЛА YOLO
+      final prompt = '''
+      Список найденных продуктов: $_currentIngredients.
+      $langInstruction
+      Переведи названия этих продуктов и верни их в поле "detected_ingredients".
+      Если список пуст, попробуй определить продукты сам по контексту "кухня".
+      $restrictionText
+      Предложи 6 рецепта.
+      $structurePrompt
+      ''';
 
-      if (isInitial && widget.imagePath != null) {
-        final imageBytes = await File(widget.imagePath!).readAsBytes();
-        final prompt = '''
-        Посмотри на это фото. Составь список ВСЕХ увиденных съедобных продуктов.
-        $restrictionText
-        $langInstruction
-        На основе этих продуктов предложи 3 рецепта.
-        $structurePrompt
-        ''';
-        response = await model.generateContent([
-          Content.multi([TextPart(prompt), DataPart('image/jpeg', imageBytes)])
-        ]);
-      } else {
-        final prompt = '''
-        Я буду готовить из следующих продуктов: $_currentIngredients.
-        $restrictionText
-        $langInstruction
-        Предложи 3 рецепта строго из этого списка.
-        В поле "detected_ingredients" верни список продуктов на том же языке.
-        $structurePrompt
-        ''';
-        response = await model.generateContent([Content.text(prompt)]);
-      }
+      final response = await model.generateContent([Content.text(prompt)]);
 
       if (response.text != null) {
         String cleanJson = response.text!
@@ -138,7 +271,8 @@ class _AiRecipesScreenState extends State<AiRecipesScreen> {
 
         if (mounted) {
           setState(() {
-            if (isInitial && widget.imagePath != null) {
+            // Если YOLO ничего не нашла, берем то, что нашел Gemini
+            if (_currentIngredients.isEmpty) {
               _currentIngredients = newIngredientsList.join(", ");
             }
             recipes = newRecipes;
@@ -159,7 +293,7 @@ class _AiRecipesScreenState extends State<AiRecipesScreen> {
   }
 
   void _showEditDialog() {
-    final TextEditingController controller = TextEditingController(text: _currentIngredients);
+    final TextEditingController editController = TextEditingController(text: _currentIngredients);
     showDialog(
       context: context,
       builder: (context) {
@@ -174,7 +308,7 @@ class _AiRecipesScreenState extends State<AiRecipesScreen> {
               ),
               const SizedBox(height: 10),
               TextField(
-                controller: controller,
+                controller: editController,
                 decoration: const InputDecoration(border: OutlineInputBorder()),
                 maxLines: 4,
               ),
@@ -189,7 +323,7 @@ class _AiRecipesScreenState extends State<AiRecipesScreen> {
               onPressed: () {
                 Navigator.pop(context);
                 setState(() {
-                  _currentIngredients = controller.text;
+                  _currentIngredients = editController.text;
                 });
                 _generateRecipes(isInitial: false);
               },
@@ -203,65 +337,132 @@ class _AiRecipesScreenState extends State<AiRecipesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Проверка темы для адаптации цветов
+    if (showCamera) {
+      return _buildCameraView();
+    }
+
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       appBar: AppBar(
         title: Text(LanguageService.tr('results_title')),
       ),
-      body: Column(
+      body: SingleChildScrollView( // ДОБАВЛЕНО для предотвращения Bottom Overflow
+        child: Column(
+          children: [
+            // Верхняя панель: Фото и Список
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              color: isDark ? Colors.green.withOpacity(0.15) : Colors.green[50],
+              child: Column(
+                children: [
+                  if (widget.imagePath != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Container(
+                        constraints: const BoxConstraints(maxHeight: 250),
+                        width: double.infinity,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: Image.file(File(widget.imagePath!), fit: BoxFit.contain),
+                        ),
+                      ),
+                    ),
+
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          _currentIngredients.isEmpty
+                              ? LanguageService.tr('chef_thinking')
+                              : "${LanguageService.tr('products_label')} $_currentIngredients",
+                          style: const TextStyle(fontWeight: FontWeight.w500),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.edit, color: Colors.green),
+                        onPressed: _showEditDialog,
+                        tooltip: LanguageService.tr('edit'),
+                      )
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            // Список рецептов (используем ListView напрямую)
+            isLoading
+                ? Padding(
+                    padding: const EdgeInsets.only(top: 50),
+                    child: _buildLoading(),
+                  )
+                : errorMessage != null
+                ? _buildError()
+                : _buildRecipeList(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCameraView() {
+    if (!isLoaded) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    _startDetection();
+
+    return Scaffold(
+      body: Stack(
+        fit: StackFit.expand,
         children: [
-          // Верхняя панель: Фото и Список
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            // ИСПРАВЛЕНИЕ: Адаптивный цвет фона
-            color: isDark ? Colors.green.withOpacity(0.15) : Colors.green[50],
+          CameraPreview(controller),
+          CustomPaint(
+            painter: YoloPainter(
+              yoloResults,
+              controller.value.previewSize!,
+              MediaQuery.of(context).size,
+            ),
+          ),
+          Positioned(
+            bottom: 30,
+            left: 20,
+            right: 20,
             child: Column(
               children: [
-                if (widget.imagePath != null)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: SizedBox(
-                      height: 150,
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: Image.file(File(widget.imagePath!), fit: BoxFit.cover),
-                      ),
+                if (detectedTags.isNotEmpty)
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.black54,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      "${LanguageService.tr('products_label')} ${detectedTags.map((tag) => IngredientService.translate(tag)).join(", ")}",
+                      style: const TextStyle(color: Colors.white),
+                      textAlign: TextAlign.center,
                     ),
                   ),
-
                 Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
-                    Expanded(
-                      child: Text(
-                        _currentIngredients.isEmpty
-                            ? "..."
-                            : "${LanguageService.tr('products_label')} $_currentIngredients",
-                        style: const TextStyle(fontWeight: FontWeight.w500),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                    FloatingActionButton.extended(
+                      onPressed: () => Navigator.pop(context),
+                      heroTag: "cancel",
+                      label: Text(LanguageService.tr('cancel')),
+                      icon: const Icon(Icons.close),
+                      backgroundColor: Colors.redAccent,
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.edit, color: Colors.green),
-                      onPressed: _showEditDialog,
-                      tooltip: LanguageService.tr('edit'),
-                    )
+                    FloatingActionButton.extended(
+                      onPressed: _stopDetection,
+                      heroTag: "generate",
+                      label: Text(LanguageService.tr('search')),
+                      icon: const Icon(Icons.auto_awesome),
+                      backgroundColor: Colors.green,
+                    ),
                   ],
                 ),
               ],
             ),
-          ),
-
-          // Список рецептов
-          Expanded(
-            child: isLoading
-                ? _buildLoading()
-                : errorMessage != null
-                ? _buildError()
-                : _buildRecipeList(),
           ),
         ],
       ),
@@ -292,7 +493,8 @@ class _AiRecipesScreenState extends State<AiRecipesScreen> {
           children: [
             const Icon(Icons.error, color: Colors.red, size: 50),
             const SizedBox(height: 10),
-            Text(errorMessage ?? "Error"),
+            Text(errorMessage ?? "Error", textAlign: TextAlign.center),
+            const SizedBox(height: 10),
             ElevatedButton(
                 onPressed: () => _generateRecipes(isInitial: false),
                 child: Text(LanguageService.tr('retry'))
@@ -309,12 +511,13 @@ class _AiRecipesScreenState extends State<AiRecipesScreen> {
     }
 
     return ListView.builder(
+      shrinkWrap: true, // Важно внутри SingleChildScrollView
+      physics: const NeverScrollableScrollPhysics(),
       padding: const EdgeInsets.all(10),
       itemCount: recipes.length,
       itemBuilder: (context, index) {
         final recipe = recipes[index];
         return Card(
-          // Карточка сама адаптируется под тему (темная в Dark Mode)
           elevation: 4,
           margin: const EdgeInsets.only(bottom: 15),
           child: ListTile(
@@ -335,4 +538,52 @@ class _AiRecipesScreenState extends State<AiRecipesScreen> {
       },
     );
   }
+}
+
+class YoloPainter extends CustomPainter {
+  final List<Map<String, dynamic>> results;
+  final Size previewSize;
+  final Size screenSize;
+
+  YoloPainter(this.results, this.previewSize, this.screenSize);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.0
+      ..color = Colors.greenAccent;
+
+    final textPainter = TextPainter(
+      textDirection: TextDirection.ltr,
+    );
+
+    double widthRatio = screenSize.width / previewSize.height;
+    double heightRatio = screenSize.height / previewSize.width;
+
+    for (var result in results) {
+      final box = result['box'];
+      final double left = box[0] * widthRatio;
+      final double top = box[1] * heightRatio;
+      final double right = box[2] * widthRatio;
+      final double bottom = box[3] * heightRatio;
+
+      canvas.drawRect(Rect.fromLTRB(left, top, right, bottom), paint);
+
+      textPainter.text = TextSpan(
+        text: "${IngredientService.translate(result['tag'])} ${(result['box'][4] * 100).toStringAsFixed(0)}%",
+        style: const TextStyle(
+          color: Colors.greenAccent,
+          fontSize: 14,
+          fontWeight: FontWeight.bold,
+          backgroundColor: Colors.black54,
+        ),
+      );
+      textPainter.layout();
+      textPainter.paint(canvas, Offset(left, top - 20));
+    }
+  }
+
+  @override
+  bool shouldRepaint(CustomPainter oldDelegate) => true;
 }
