@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/services.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // Добавлен Firebase для имени
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/language_service.dart';
 import '../services/theme_service.dart';
 import '../services/calorie_service.dart';
@@ -98,6 +99,156 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (mounted) {
       Navigator.pushReplacementNamed(context, '/home');
     }
+  }
+
+  // --- МЕТОДЫ УПРАВЛЕНИЯ АККАУНТОМ ---
+
+  void _showChangeUsernameDialog() async {
+    // 1. Получаем ТЕКУЩИЙ логин из базы
+    String currentLogin = "";
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+        currentLogin = doc.data()?['username'] ?? user.displayName ?? "";
+      }
+    } catch (e) {
+      debugPrint("Error fetching current login: $e");
+    }
+
+    final controller = TextEditingController(text: currentLogin);
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(LanguageService.tr('change_login')),
+        content: TextField(
+          controller: controller,
+          decoration: InputDecoration(labelText: LanguageService.tr('new_username')),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: Text(LanguageService.tr('cancel'))),
+          ElevatedButton(
+            onPressed: () async {
+              try {
+                await AuthService().updateUsername(controller.text.trim());
+                if (mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(LanguageService.tr('success_save'))));
+                }
+              } catch (e) {
+                String errorMsg = e.toString();
+                if (errorMsg.contains('username-taken')) {
+                  errorMsg = LanguageService.tr('username_taken');
+                }
+                if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorMsg), backgroundColor: Colors.red));
+              }
+            },
+            child: Text(LanguageService.tr('save')),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showChangeEmailDialog() {
+    final emailController = TextEditingController();
+    final passController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(LanguageService.tr('change_email')),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(controller: emailController, decoration: InputDecoration(labelText: LanguageService.tr('new_email'))),
+            TextField(controller: passController, obscureText: true, decoration: InputDecoration(labelText: LanguageService.tr('current_password'))),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: Text(LanguageService.tr('cancel'))),
+          ElevatedButton(
+            onPressed: () async {
+              final newEmail = emailController.text.trim();
+              final password = passController.text.trim();
+              final currentUserEmail = FirebaseAuth.instance.currentUser?.email;
+
+              if (newEmail.isEmpty || password.isEmpty) return;
+
+              try {
+                final auth = AuthService();
+                
+                // Если почта в Auth уже новая (после подтверждения), 
+                // но пользователь хочет обновить её в БД
+                if (newEmail == currentUserEmail) {
+                  // Просто вызываем обновление Firestore без вызова Auth
+                  await auth.updateEmailInFirestoreOnly(newEmail);
+                  if (mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Данные в базе синхронизированы!"), backgroundColor: Colors.green));
+                  }
+                  return;
+                }
+
+                await auth.reauthenticate(password);
+                await auth.updateEmail(newEmail);
+                if (mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(LanguageService.tr('email_update_sent'))));
+                }
+              } catch (e) {
+                String errorMsg = e.toString();
+                if (errorMsg.contains("invalid-credential")) {
+                  errorMsg = "Неверный пароль. Попробуйте еще раз.";
+                }
+                if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorMsg), backgroundColor: Colors.red));
+              }
+            },
+            child: Text(LanguageService.tr('save')),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showChangePasswordDialog() {
+    final newPassController = TextEditingController();
+    final oldPassController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(LanguageService.tr('change_password')),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(controller: oldPassController, obscureText: true, decoration: InputDecoration(labelText: LanguageService.tr('current_password'))),
+            TextField(controller: newPassController, obscureText: true, decoration: InputDecoration(labelText: LanguageService.tr('new_password'))),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: Text(LanguageService.tr('cancel'))),
+          ElevatedButton(
+            onPressed: () async {
+              try {
+                final auth = AuthService();
+                await auth.reauthenticate(oldPassController.text.trim());
+                await auth.updatePassword(newPassController.text.trim());
+                if (mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(LanguageService.tr('success_save'))));
+                }
+              } catch (e) {
+                if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString()), backgroundColor: Colors.red));
+              }
+            },
+            child: Text(LanguageService.tr('save')),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -306,6 +457,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
               _saveSetting('nutAllergy', val);
             },
           ),
+
+          const Divider(height: 30),
+
+          // --- БЛОК БЕЗОПАСНОСТИ АККАУНТА ---
+          if (!widget.isInitialSetup) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Text(LanguageService.tr('account_management'),
+                  style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+            ),
+            ListTile(
+              leading: const Icon(Icons.email_outlined),
+              title: Text(LanguageService.tr('change_email')),
+              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+              onTap: _showChangeEmailDialog,
+            ),
+            ListTile(
+              leading: const Icon(Icons.lock_outline),
+              title: Text(LanguageService.tr('change_password')),
+              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+              onTap: _showChangePasswordDialog,
+            ),
+            const Divider(height: 30),
+          ],
 
           // === КНОПКА ЗАВЕРШЕНИЯ В САМОМ КОНЦЕ СПИСКА ===
           if (widget.isInitialSetup) ...[

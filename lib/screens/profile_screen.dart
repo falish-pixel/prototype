@@ -35,25 +35,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+
+
   Future<void> _updateName() async {
     final newName = _nameController.text.trim();
     if (newName.isEmpty) return;
+    if (newName == user?.displayName) return;
+
     setState(() => _isLoading = true);
 
     try {
-      await UserService.updateName(newName);
+      // Это меняет твой ID везде: и в профиле, и для входа
+      await _authService.updateUsername(newName);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(LanguageService.tr('name_saved')), backgroundColor: Colors.green),
         );
+        FocusScope.of(context).unfocus();
       }
     } catch (e) {
-      debugPrint("Error updating name: $e");
+      String msg = e.toString();
+      if (msg.contains("username-taken")) msg = LanguageService.tr('username_taken');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.red));
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -272,12 +277,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ),
                   const SizedBox(height: 30),
-                  // Редактирование имени
+                  // Редактирование отображаемого имени
                   TextField(
                     controller: _nameController,
                     decoration: InputDecoration(
                       labelText: LanguageService.tr('your_name'),
-                      prefixIcon: const Icon(Icons.edit),
+                      prefixIcon: const Icon(Icons.person_outline),
                       suffixIcon: IconButton(
                         icon: const Icon(Icons.check, color: Colors.green),
                         onPressed: _updateName,

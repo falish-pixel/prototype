@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -9,36 +10,41 @@ class AuthService {
   // Поток для отслеживания состояния пользователя
   Stream<User?> get authStateChanges => _auth.authStateChanges();
 
-  // РЕГИСТРАЦИЯ: логин + почта + пароль
+  // РЕГИСТРАЦИЯ
   Future<UserCredential?> signUpWithEmail({
     required String email,
     required String password,
     required String username,
   }) async {
     try {
-      // 1. Проверяем, не занят ли логин в Firestore
       final usernameDoc = await _db.collection('usernames').doc(username).get();
       if (usernameDoc.exists) {
         throw FirebaseAuthException(code: 'username-taken', message: 'Этот логин уже занят');
       }
 
-      // 2. Создаем аккаунт в Firebase Auth
       UserCredential result = await _auth.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
 
       if (result.user != null) {
-        // 3. Сохраняем связь логина и почты в Firestore
+        // 1. Сохраняем логин в usernames
         await _db.collection('usernames').doc(username).set({
           'email': email,
           'uid': result.user!.uid,
         });
 
-        // 4. Обновляем displayName пользователя
+        // 2. Создаем документ пользователя в users
+        await _db.collection('users').doc(result.user!.uid).set({
+          'displayName': username,
+          'username': username,
+          'email': email,
+          'level': 1,
+          'xp': 0,
+          'recipesCooked': 0,
+        });
+
         await result.user!.updateDisplayName(username);
-        
-        // 5. Отправляем письмо (НЕ ВЫХОДИМ, чтобы проверять статус в реальном времени)
         await result.user!.sendEmailVerification();
       }
       return result;
@@ -47,38 +53,46 @@ class AuthService {
     }
   }
 
-  // ВХОД: по Email ИЛИ Логину
+  // ВХОД
   Future<UserCredential?> signInWithIdentifier(String identifier, String password) async {
     String email = identifier;
 
-    // Если в identifier нет '@', значит это логин — ищем email в Firestore
     if (!identifier.contains('@')) {
-      final doc = await _db.collection('usernames').doc(identifier).get();
+      final cleanIdentifier = identifier.trim();
+      final doc = await _db.collection('usernames').doc(cleanIdentifier).get();
+      
       if (!doc.exists) {
         throw FirebaseAuthException(code: 'user-not-found', message: 'Логин не найден');
       }
       email = doc.data()?['email'];
     }
 
-    // Выполняем вход
-    UserCredential result = await _auth.signInWithEmailAndPassword(
-      email: email,
-      password: password,
-    );
-
-    // Проверяем подтверждение почты
-    if (result.user != null && !result.user!.emailVerified) {
-      await _auth.signOut();
-      throw FirebaseAuthException(
-        code: 'email-not-verified',
-        message: 'Пожалуйста, подтвердите вашу почту.',
+    try {
+      UserCredential result = await _auth.signInWithEmailAndPassword(
+        email: email.trim(),
+        password: password,
       );
-    }
 
-    return result;
+      if (result.user != null && !result.user!.emailVerified) {
+        await _auth.signOut();
+        throw FirebaseAuthException(
+          code: 'email-not-verified',
+          message: 'Пожалуйста, подтвердите вашу почту.',
+        );
+      }
+      return result;
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'invalid-credential' || e.code == 'wrong-password') {
+        throw FirebaseAuthException(
+          code: e.code,
+          message: 'Неверный логин или пароль.'
+        );
+      }
+      rethrow;
+    }
   }
 
-  // Вход через Google
+  // ВХОД ЧЕРЕЗ GOOGLE
   Future<UserCredential?> signInWithGoogle() async {
     try {
       final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
@@ -92,87 +106,128 @@ class AuthService {
 
       return await _auth.signInWithCredential(credential);
     } catch (e) {
-      print("Ошибка входа Google: $e");
+      debugPrint("Google Sign-In Error: $e");
       return null;
     }
   }
 
-  // Сброс пароля
+  // СБРОС ПАРОЛЯ
   Future<void> sendPasswordResetEmail(String email) async {
     await _auth.sendPasswordResetEmail(email: email);
   }
 
-  // Обновить данные пользователя (полезно для проверки emailVerified)
-  Future<void> reloadUser() async {
-    await _auth.currentUser?.reload();
+  // ОБНОВЛЕНИЕ ПОЧТЫ
+  Future<void> updateEmail(String newEmail) async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    await user.verifyBeforeUpdateEmail(newEmail);
+    await updateEmailInFirestoreOnly(newEmail);
   }
 
-  // ВЫХОД
-  Future<void> signOut() async {
-    await GoogleSignIn().signOut();
-    await _auth.signOut();
+  // СИНХРОНИЗАЦИЯ ПОЧТЫ ТОЛЬКО В FIRESTORE
+  Future<void> updateEmailInFirestoreOnly(String newEmail) async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    // 1. Ищем логин в users
+    final userDoc = await _db.collection('users').doc(user.uid).get();
+    final username = userDoc.data()?['username'];
+
+    if (username != null) {
+      await _db.collection('usernames').doc(username).set({
+        'email': newEmail,
+      }, SetOptions(merge: true));
+    }
+
+    // 2. Обновляем в users
+    await _db.collection('users').doc(user.uid).set({
+      'email': newEmail,
+    }, SetOptions(merge: true));
   }
 
-  // ОБНОВЛЕНИЕ ЛОГИНА (решение бага со входом)
+  // ИЗМЕНЕНИЕ ЛОГИНА (ID)
   Future<void> updateUsername(String newUsername) async {
     final user = _auth.currentUser;
     if (user == null) return;
 
-    final oldUsername = user.displayName;
-    if (oldUsername == newUsername) return; // Ничего не изменилось
-
     try {
-      // 1. Проверяем, не занят ли НОВЫЙ логин
+      final userDoc = await _db.collection('users').doc(user.uid).get();
+      final oldUsername = userDoc.data()?['username'];
+
+      if (oldUsername == newUsername) return;
+
       final newDoc = await _db.collection('usernames').doc(newUsername).get();
       if (newDoc.exists) {
         throw FirebaseAuthException(code: 'username-taken', message: 'Этот логин уже занят');
       }
 
-      // 2. Создаем новую запись
       await _db.collection('usernames').doc(newUsername).set({
         'email': user.email,
         'uid': user.uid,
       });
 
-      // 3. Удаляем старую запись
-      if (oldUsername != null && oldUsername.isNotEmpty) {
+      if (oldUsername != null) {
         await _db.collection('usernames').doc(oldUsername).delete();
       }
 
-      // 4. Обновляем displayName в Auth
+      await _db.collection('users').doc(user.uid).update({
+        'username': newUsername,
+        'displayName': newUsername, // Для синхронизации
+      });
+      
       await user.updateDisplayName(newUsername);
     } catch (e) {
       rethrow;
     }
   }
 
-  // ПОЛНОЕ УДАЛЕНИЕ АККАУНТА (с проверкой пароля)
+  // РЕ-АУТЕНТИФИКАЦИЯ
+  Future<void> reauthenticate(String password) async {
+    final user = _auth.currentUser;
+    if (user == null || user.email == null) throw Exception("User not found");
+    AuthCredential credential = EmailAuthProvider.credential(email: user.email!, password: password);
+    await user.reauthenticateWithCredential(credential);
+  }
+
+  // ОБНОВЛЕНИЕ ПАРОЛЯ
+  Future<void> updatePassword(String newPassword) async {
+    await _auth.currentUser?.updatePassword(newPassword);
+  }
+
+  // ПОЛНОЕ УДАЛЕНИЕ АККАУНТА
   Future<void> deleteAccount(String password) async {
     final user = _auth.currentUser;
-    if (user == null) return;
+    if (user == null || user.email == null) return;
 
     try {
-      final username = user.displayName;
-      final email = user.email;
+      await reauthenticate(password);
 
-      if (email == null) return;
+      final userDoc = await _db.collection('users').doc(user.uid).get();
+      final username = userDoc.data()?['username'];
 
-      // 1. Ре-аутентификация (обязательно для удаления)
-      AuthCredential credential = EmailAuthProvider.credential(email: email, password: password);
-      await user.reauthenticateWithCredential(credential);
-
-      // 2. Удаляем из коллекции usernames
-      if (username != null && username.isNotEmpty) {
+      if (username != null) {
         await _db.collection('usernames').doc(username).delete();
       }
 
-      // 3. Удаляем данные пользователя
       await _db.collection('users').doc(user.uid).delete();
-
-      // 4. Удаляем самого пользователя
       await user.delete();
     } catch (e) {
       rethrow;
     }
+  }
+
+  // СИНХРОНИЗАЦИЯ ПОСЛЕ ПОДТВЕРЖДЕНИЯ
+  Future<void> syncEmailWithFirestore() async {
+    final user = _auth.currentUser;
+    if (user == null || user.email == null) return;
+    await updateEmailInFirestoreOnly(user.email!);
+  }
+
+  Future<void> reloadUser() async => await _auth.currentUser?.reload();
+
+  Future<void> signOut() async {
+    await GoogleSignIn().signOut();
+    await _auth.signOut();
   }
 }

@@ -5,7 +5,7 @@ class CalorieService {
   static final _db = FirebaseFirestore.instance;
   static final _auth = FirebaseAuth.instance;
 
-  // 1. Статистика за сегодня (Stream) - БЕЗ ИЗМЕНЕНИЙ
+  // 1. Статистика за сегодня (Stream)
   static Stream<DocumentSnapshot> getTodayStats() {
     final user = _auth.currentUser;
     if (user == null) return const Stream.empty();
@@ -14,7 +14,7 @@ class CalorieService {
     return _db.collection('users').doc(user.uid).collection('daily_stats').doc(date).snapshots();
   }
 
-  // 2. Статистика за неделю (Future) - БЕЗ ИЗМЕНЕНИЙ
+  // 2. Статистика за неделю (Future)
   static Future<List<Map<String, dynamic>>> getWeeklyStats() async {
     final user = _auth.currentUser;
     if (user == null) return [];
@@ -36,7 +36,7 @@ class CalorieService {
     }).toList();
   }
 
-  // 3. Добавить калории (ОБНОВЛЕНО: добавили label и запись в историю)
+  // 3. Добавить калории
   static Future<void> addCalories(int amount, String label) async {
     final user = _auth.currentUser;
     if (user == null) return;
@@ -48,14 +48,14 @@ class CalorieService {
     final dayRef = _db.collection('users').doc(user.uid).collection('daily_stats').doc(date);
     final userRef = _db.collection('users').doc(user.uid);
 
-    // А) Сначала сохраняем запись в историю (Что именно съел)
+    // Что именно съел
     await historyRef.add({
       'amount': amount,
-      'label': label, // Название блюда (Борщ, Смузи и т.д.)
+      'label': label,
       'date': FieldValue.serverTimestamp(),
     });
 
-    // Б) Потом обновляем общую статистику за день (Транзакция как была)
+    // Транзакция как была
     return _db.runTransaction((transaction) async {
       final daySnapshot = await transaction.get(dayRef);
 
@@ -81,7 +81,7 @@ class CalorieService {
     });
   }
 
-  // 4. Получить историю питания (НОВОЕ)
+  // 4. Получить историю питания
   static Stream<QuerySnapshot> getHistoryStream() {
     final user = _auth.currentUser;
     if (user == null) return const Stream.empty();
@@ -90,12 +90,12 @@ class CalorieService {
         .collection('users')
         .doc(user.uid)
         .collection('history')
-        .orderBy('date', descending: true) // Сначала новые
-        .limit(20) // Показываем последние 20 записей
+        .orderBy('date', descending: true)
+        .limit(20)
         .snapshots();
   }
 
-  // 5. Обновить цель - БЕЗ ИЗМЕНЕНИЙ
+  // 5. Обновить цель
   static Future<void> updateGoal(int newGoal) async {
     final user = _auth.currentUser;
     if (user == null) return;
@@ -113,7 +113,7 @@ class CalorieService {
     }
   }
 
-  // 6. Получить текущую цель - БЕЗ ИЗМЕНЕНИЙ
+  // 6. Получить текущую цель
   static Future<int> getCurrentGoal() async {
     final user = _auth.currentUser;
     if (user == null) return 2000;

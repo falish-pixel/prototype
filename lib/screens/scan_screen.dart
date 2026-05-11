@@ -46,7 +46,7 @@ class _AiRecipesScreenState extends State<AiRecipesScreen> {
   void initState() {
     super.initState();
     vision = FlutterVision();
-    
+
     if (widget.ingredientsInput != null) {
       _currentIngredients = widget.ingredientsInput!;
       _generateRecipes(isInitial: true);
@@ -58,7 +58,6 @@ class _AiRecipesScreenState extends State<AiRecipesScreen> {
     }
   }
 
-  // --- ЛОГИКА ДЛЯ СТАТИЧЕСКОГО ФОТО (ИЗ ГАЛЕРЕИ ИЛИ ПОСЛЕ ФОТО) ---
   Future<void> _processStaticImage() async {
     setState(() {
       isLoading = true;
@@ -66,7 +65,7 @@ class _AiRecipesScreenState extends State<AiRecipesScreen> {
     });
 
     try {
-      // Загружаем модель, если еще не загружена
+      // Загружаем модель
       await vision.loadYoloModel(
         modelPath: 'assets/best.tflite',
         labels: 'assets/labels.txt',
@@ -171,7 +170,7 @@ class _AiRecipesScreenState extends State<AiRecipesScreen> {
       isLoading = true;
       _currentIngredients = detectedTags.map((tag) => IngredientService.translate(tag)).join(", ");
     });
-    
+
     _generateRecipes(isInitial: false);
   }
 
@@ -201,18 +200,18 @@ class _AiRecipesScreenState extends State<AiRecipesScreen> {
 
       // 1. ПОЛУЧАЕМ ВСЕ РЕЦЕПТЫ ИЗ FIRESTORE (или кеша)
       final QuerySnapshot recipesSnapshot = await FirebaseFirestore.instance.collection('recipes').get();
-      
+
       // 2. ЛОКАЛЬНАЯ ПРЕ-ФИЛЬТРАЦИЯ (Top 40 кандидатов)
       // Это решает проблему "Chef thinking too long" при 500+ рецептах
       List<String> userIngreds = _currentIngredients.toLowerCase().split(RegExp(r'[,\s]+')).where((s) => s.length > 2).toList();
-      
+
       List<DocumentSnapshot> allDocs = recipesSnapshot.docs;
       
       // Сортируем по количеству совпадений ингредиентов
       allDocs.sort((a, b) {
         final dataA = a.data() as Map<String, dynamic>;
         final dataB = b.data() as Map<String, dynamic>;
-        
+
         String getIngStr(dynamic ing) {
           if (ing is List) return ing.join(' ').toLowerCase();
           if (ing is String) return ing.toLowerCase();
@@ -221,7 +220,7 @@ class _AiRecipesScreenState extends State<AiRecipesScreen> {
 
         final ingA = getIngStr(dataA['ingredients']);
         final ingB = getIngStr(dataB['ingredients']);
-        
+
         int scoreA = userIngreds.where((ui) => ingA.contains(ui)).length;
         int scoreB = userIngreds.where((ui) => ingB.contains(ui)).length;
         return scoreB.compareTo(scoreA); // По убыванию
@@ -296,17 +295,17 @@ class _AiRecipesScreenState extends State<AiRecipesScreen> {
         // Более надежное извлечение JSON: ищем первую { и последнюю }
         int startIndex = text.indexOf('{');
         int endIndex = text.lastIndexOf('}');
-        
+
         if (startIndex == -1 || endIndex == -1) {
           throw Exception("Invalid JSON format in Gemini response");
         }
-        
+
         String cleanJson = text.substring(startIndex, endIndex + 1);
-        
+
         final data = jsonDecode(cleanJson);
         List<String> selectedIds = List<String>.from(data['selected_ids'] ?? []);
         List<dynamic> rawIngredients = data['detected_ingredients'] ?? [];
-        
+
         // 2. ПОЛУЧАЕМ ПОЛНЫЕ ДАННЫЕ ВЫБРАННЫХ РЕЦЕПТОВ
         List<Map<String, dynamic>> finalRecipes = [];
         for (String id in selectedIds) {

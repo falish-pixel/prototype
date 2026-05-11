@@ -540,5 +540,23 @@ class LanguageService {
     'history_title': {'ru': 'История питания', 'kk': 'Тамақтану тарихы', 'en': 'Food History'},
     'empty_history': {'ru': 'Пока пусто', 'kk': 'Әзірге бос', 'en': 'Empty so far'},
     'daily_goal': {'ru': 'Моя цель (ккал)', 'kk': 'Күнделікті мақсат (ккал)', 'en': 'Daily Goal (kcal)'},
+
+    // === УПРАВЛЕНИЕ АККАУНТОМ ===
+    'account_management': {'ru': 'Безопасность', 'kk': 'Қауіпсіздік', 'en': 'Account Security'},
+    'your_name': {'ru': 'Ваше имя', 'kk': 'Сіздің атыңыз', 'en': 'Your Name'},
+    'change_login': {'ru': 'Сменить логин (ID)', 'kk': 'Логинді өзгерту', 'en': 'Change Login ID'},
+    'change_email': {'ru': 'Сменить почту', 'kk': 'Email өзгерту', 'en': 'Change Email'},
+    'change_password': {'ru': 'Сменить пароль', 'kk': 'Құпия сөзді өзгерту', 'en': 'Change Password'},
+    'current_password': {'ru': 'Текущий пароль', 'kk': 'Ағымдағы құпия сөз', 'en': 'Current Password'},
+    'new_password': {'ru': 'Новый пароль', 'kk': 'Жаңа құпия сөз', 'en': 'New Password'},
+    'new_email': {'ru': 'Новый Email', 'kk': 'Жаңа Email', 'en': 'New Email'},
+    'new_username': {'ru': 'Новый логин', 'kk': 'Жаңа логин', 'en': 'New Username'},
+    'reauth_required': {'ru': 'Введите пароль для подтверждения', 'kk': 'Растау үшін құпия сөзді енгізіңіз', 'en': 'Enter password to confirm'},
+    'email_update_sent': {
+      'ru': 'Ссылка для подтверждения новой почты отправлена!',
+      'kk': 'Жаңа почтаны растау сілтемесі жіберілді!',
+      'en': 'A confirmation link has been sent to your new email!',
+    },
+    'success_save': {'ru': 'Успешно сохранено!', 'kk': 'Сәтті сақталды!', 'en': 'Successfully saved!'},
   };
 }

@@ -66,11 +66,9 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
     final String cleanString = kcalString.replaceAll(RegExp(r'[^0-9]'), '');
     final int kcal = int.tryParse(cleanString) ?? 0;
 
-    // 1. Берем название блюда (или 'Food', если названия нет)
     final String dishName = widget.recipe['name'] ?? 'Food';
 
     if (kcal > 0) {
-      // 2. Передаем и калории, и название!
       await CalorieService.addCalories(kcal, dishName);
 
       final newLevel = await UserService.addXp(50);
