@@ -2,6 +2,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'dart:io';
 import '../services/auth_service.dart';
 import '../services/language_service.dart';
 import '../services/user_service.dart';
@@ -38,28 +41,43 @@ class _ProfileScreenState extends State<ProfileScreen> {
     setState(() => _isLoading = true);
 
     try {
-      await _authService.updateUsername(newName);
-      await UserService.updateNameInFirestore(newName);
+      await UserService.updateName(newName);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(LanguageService.tr('name_saved')), backgroundColor: Colors.green),
         );
-        Navigator.pop(context, true);
-      }
-    } on FirebaseAuthException catch (e) {
-      String message = e.code == 'username-taken' 
-          ? LanguageService.tr('username_taken') 
-          : e.message ?? e.code;
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message), backgroundColor: Colors.red),
-        );
       }
     } catch (e) {
       debugPrint("Error updating name: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
+        );
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _pickAndUploadImage() async {
+    final picker = ImagePicker();
+    final XFile? image = await picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
+    
+    if (image != null) {
+      if (!mounted) return;
+      setState(() => _isLoading = true);
+      
+      final url = await UserService.uploadAvatar(File(image.path));
+      
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+
+      if (url != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Фото профиля обновлено!"), backgroundColor: Colors.green),
+        );
+      }
     }
   }
 
@@ -131,15 +149,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
           int level = 1;
           int xp = 0;
           int recipesCooked = 0;
+          String displayName = user?.displayName ?? "User";
+          String? photoURL = user?.photoURL;
 
           if (snapshot.hasData && snapshot.data!.exists) {
             final data = snapshot.data!.data() as Map<String, dynamic>;
             level = data['level'] ?? 1;
             xp = data['xp'] ?? 0;
             recipesCooked = data['recipesCooked'] ?? 0;
+            displayName = data['displayName'] ?? displayName;
+            photoURL = data['photoURL'] ?? photoURL;
 
             if (!_isLoading && _nameController.text.isEmpty) {
-              _nameController.text = data['displayName'] ?? "";
+              _nameController.text = displayName;
             }
           }
 
@@ -147,34 +169,65 @@ class _ProfileScreenState extends State<ProfileScreen> {
           double progress = (xp / xpNextLevel).clamp(0.0, 1.0);
 
           return Scaffold(
-            appBar: AppBar(title: Text(LanguageService.tr('edit_profile'))),
+            appBar: AppBar(title: Text(LanguageService.tr('account'))),
             body: SingleChildScrollView(
               padding: const EdgeInsets.all(24.0),
               child: Column(
                 children: [
                   const SizedBox(height: 10),
+                  // АВАТАРКА С КНОПКОЙ РЕДАКТИРОВАНИЯ
                   Stack(
                     alignment: Alignment.bottomRight,
                     children: [
-                      Container(
-                        width: 110, height: 110,
-                        decoration: BoxDecoration(
-                          color: Colors.green.withValues(alpha: 0.1),
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.green, width: 3),
+                      GestureDetector(
+                        onTap: _pickAndUploadImage,
+                        child: Container(
+                          width: 120, height: 120,
+                          decoration: BoxDecoration(
+                            color: Colors.green.withValues(alpha: 0.1),
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.green, width: 3),
+                          ),
+                          child: ClipOval(
+                            child: photoURL != null 
+                              ? CachedNetworkImage(
+                                  imageUrl: photoURL,
+                                  placeholder: (context, url) => const CircularProgressIndicator(),
+                                  errorWidget: (context, url, error) => const Icon(Icons.person, size: 70, color: Colors.green),
+                                  fit: BoxFit.cover,
+                                )
+                              : const Icon(Icons.person, size: 70, color: Colors.green),
+                          ),
                         ),
-                        child: const Icon(Icons.person, size: 60, color: Colors.green),
                       ),
+                      // Уровень в маленьком кружке
                       Container(
                         padding: const EdgeInsets.all(8),
                         decoration: const BoxDecoration(color: Colors.orange, shape: BoxShape.circle),
-                        child: Text("$level", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 18)),
+                        child: Text("$level", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 16)),
+                      ),
+                      // Кнопка карандаша для фото
+                      Positioned(
+                        right: 0, top: 0,
+                        child: GestureDetector(
+                          onTap: _pickAndUploadImage,
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: const BoxDecoration(color: Colors.green, shape: BoxShape.circle),
+                            child: const Icon(Icons.camera_alt, color: Colors.white, size: 18),
+                          ),
+                        ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 20),
-                  Text("${LanguageService.tr('chef_level')} $level", style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  // ИМЯ ПОЛЬЗОВАТЕЛЯ (Логин)
+                  Text(
+                    displayName,
+                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                  ),
                   const SizedBox(height: 10),
+                  // Полоса прогресса уровня
                   ClipRRect(
                     borderRadius: BorderRadius.circular(10),
                     child: LinearProgressIndicator(
@@ -195,6 +248,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ),
                   const SizedBox(height: 30),
+                  // Карточки статистики
                   Row(
                     children: [
                       Expanded(child: _buildStatCard(Icons.restaurant, "$recipesCooked", LanguageService.tr('dishes_cooked'))),
@@ -203,6 +257,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ],
                   ),
                   const SizedBox(height: 40),
+                  // Кнопка истории
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton.icon(
@@ -217,31 +272,40 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ),
                   const SizedBox(height: 30),
+                  // Редактирование имени
                   TextField(
                     controller: _nameController,
                     decoration: InputDecoration(
                       labelText: LanguageService.tr('your_name'),
                       prefixIcon: const Icon(Icons.edit),
+                      suffixIcon: IconButton(
+                        icon: const Icon(Icons.check, color: Colors.green),
+                        onPressed: _updateName,
+                      ),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                   ),
                   const SizedBox(height: 30),
+                  // Кнопка выхода
                   SizedBox(
                     width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: _isLoading ? null : _updateName,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+                        await FirebaseAuth.instance.signOut();
+                      },
+                      icon: const Icon(Icons.logout_rounded, color: Colors.grey),
+                      label: Text(
+                        LanguageService.tr('logout'),
+                        style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
-                      child: _isLoading
-                          ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white))
-                          : Text(LanguageService.tr('save'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                     ),
                   ),
                   const SizedBox(height: 20),
+                  // Удаление аккаунта
                   TextButton.icon(
                     onPressed: _isLoading ? null : _confirmDeleteAccount,
                     icon: const Icon(Icons.delete_forever, color: Colors.red),

@@ -101,61 +101,6 @@ class _HomeScreenState extends State<HomeScreen> {
             );
           },
         ),
-        actions: [
-          // Кнопка ИЗБРАННОЕ
-          IconButton(
-            icon: const Icon(Icons.favorite_rounded, color: Colors.redAccent),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const FavoritesScreen()),
-              );
-            },
-          ),
-          // Кнопка НАСТРОЙКИ
-          IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () async {
-              // 1. Переходим и ЖДЕМ возврата (await)
-              final result = await Navigator.pushNamed(context, '/settings');
-
-              // 2. Если мы вернулись и result == true (значит имя меняли)
-              if (result == true) {
-                // Пытаемся сделать reload тут, обернув его в пустой catch
-                try {
-                  await FirebaseAuth.instance.currentUser?.reload();
-                } catch (_) {
-                  // Даже если тут упадет ошибка Pigeon, мы её проигнорируем
-                }
-
-                // 3. ПРИНУДИТЕЛЬНО обновляем экран
-                if (mounted) setState(() {});
-              }
-            },
-          ),
-          // Кнопка ПРОФИЛЯ (вставлять сюда)
-          IconButton(
-            icon: const Icon(Icons.person),
-            onPressed: () async {
-              // 1. Ждем, пока пользователь закроет экран профиля
-              // Мы добавили await, чтобы код ниже выполнился только ПОСЛЕ возвращения
-              final result = await Navigator.pushNamed(context, '/profile');
-
-              // 2. Если профиль вернул true (значит имя было сохранено)
-              if (result == true) {
-                // Вызываем setState, чтобы HomeScreen перерисовал заголовок с новым именем
-                setState(() {});
-              }
-            },
-          ),
-          // Кнопка ВЫХОД
-          IconButton(
-            icon: Icon(Icons.logout_rounded, color: isDark ? Colors.white70 : Colors.black54),
-            onPressed: () async {
-              await FirebaseAuth.instance.signOut();
-            },
-          ),
-        ],
       ),
       body: SingleChildScrollView(
         physics: const BouncingScrollPhysics(),

@@ -1,26 +1,59 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'dart:io';
 
 class UserService {
   static final _db = FirebaseFirestore.instance;
   static final _auth = FirebaseAuth.instance;
+  static final _storage = FirebaseStorage.instance;
 
   /// Получаем поток данных пользователя для живого обновления UI (имя, уровень, опыт)
   static Stream<DocumentSnapshot> getUserStream() {
     final user = _auth.currentUser;
     if (user == null) return const Stream.empty();
-    // Следим за документом пользователя в коллекции 'users'
     return _db.collection('users').doc(user.uid).snapshots();
   }
 
-  /// Сохранение имени пользователя в Firestore (вместо проблемного Auth reload)
-  static Future<void> updateNameInFirestore(String newName) async {
+  /// Обновление имени в Firestore и Auth
+  static Future<void> updateName(String newName) async {
     final user = _auth.currentUser;
     if (user == null) return;
 
+    // Обновляем в Auth
+    await user.updateDisplayName(newName);
+
+    // Обновляем в Firestore
     await _db.collection('users').doc(user.uid).set({
       'displayName': newName,
     }, SetOptions(merge: true));
+  }
+
+  /// Загрузка аватара в Storage и обновление ссылок
+  static Future<String?> uploadAvatar(File imageFile) async {
+    final user = _auth.currentUser;
+    if (user == null) return null;
+
+    try {
+      // Сохраняем просто под UID, без расширения .jpg.
+      // Это совпадет с правилом match /avatars/{userId} в консоли.
+      final ref = _storage.ref().child('avatars').child(user.uid);
+      await ref.putFile(imageFile);
+      final url = await ref.getDownloadURL();
+
+      // Обновляем в Auth
+      await user.updatePhotoURL(url);
+
+      // Обновляем в Firestore
+      await _db.collection('users').doc(user.uid).set({
+        'photoURL': url,
+      }, SetOptions(merge: true));
+
+      return url;
+    } catch (e) {
+      print("Error uploading avatar: $e");
+      return null;
+    }
   }
 
   /// Начисление XP и проверка повышения уровня

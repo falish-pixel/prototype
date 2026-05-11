@@ -39,7 +39,8 @@ class LanguageService {
     'language': {'ru': 'Язык', 'kk': 'Тіл', 'en': 'Language'},
     'cancel': {'ru': 'Отмена', 'kk': 'Болдырмау', 'en': 'Cancel'},
     'save': {'ru': 'Сохранить', 'kk': 'Сақтау', 'en': 'Save'},
-    'search': {'ru': 'Искать', 'kk': 'Іздеу', 'en': 'Search'},
+    'search': {'ru': 'Поиск', 'kk': 'Іздеу', 'en': 'Search'},
+    'home': {'ru': 'Главная', 'kk': 'Басты бет', 'en': 'Home'},
 
     // === ЭКРАН ВХОДА (LOGIN) ===
     'login_subtitle': {
@@ -67,7 +68,7 @@ class LanguageService {
       'en': 'What\'s in the fridge?',
     },
     'scan_hint': {
-      'ru': 'Сделай фото или введи список вручную',
+      'ru': 'Сделайте фото или введите список вручную',
       'kk': 'Суретке түсіріңіз немесе тізімді жазыңыз',
       'en': 'Take a photo or enter a list',
     },
@@ -365,6 +366,11 @@ class LanguageService {
       'ru': 'Неверный SMS-код',
       'kk': 'Қате SMS-код',
       'en': 'Invalid SMS code',
+    },
+    'logout': {
+      'ru': 'Выйти из аккаунта',
+      'kk': 'Аккаунттан шығу',
+      'en': 'Logout',
     },
     'delete_account': {
       'ru': 'Удалить аккаунт',

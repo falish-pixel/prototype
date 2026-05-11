@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart'; // <-- Обязательный импорт для проверки первого входа
 import 'services/language_service.dart';
 import 'services/theme_service.dart';
+import 'screens/main_navigation_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/login_screen.dart';
@@ -128,9 +129,9 @@ class AuthGate extends StatelessWidget {
 
               final isSetupComplete = setupSnapshot.data ?? false;
 
-              // Если профиль уже настроен -> Главный экран
+              // Если профиль уже настроен -> Главный экран (с навигацией)
               if (isSetupComplete) {
-                return const HomeScreen();
+                return const MainNavigationScreen();
               } else {
                 // Если профиль НЕ настроен -> Экран настройки профиля (Онбординг)
                 return const SettingsScreen(isInitialSetup: true);
