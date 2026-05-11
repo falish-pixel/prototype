@@ -496,6 +496,43 @@ class LanguageService {
       'en': 'Sign up with Phone',
     },
 
+    // === ФИЛЬТРЫ И ПОИСК ===
+    'filters': {
+      'ru': 'Фильтры',
+      'kk': 'Сүзгілер',
+      'en': 'Filters'
+    },
+    'max_time': {
+      'ru': 'Макс. время',
+      'kk': 'Макс. уақыт',
+      'en': 'Max time'
+    },
+    'max_kcal': {
+      'ru': 'Макс. калории',
+      'kk': 'Макс. калориялар',
+      'en': 'Max kcal'
+    },
+    'dietary': {
+      'ru': 'Диета', // 'diet' уже есть, но для шторки можно использовать 'dietary'
+      'kk': 'Диета',
+      'en': 'Dietary'
+    },
+    'reset': { // Если ключа еще нет
+      'ru': 'Сбросить',
+      'kk': 'Қалпына келтіру',
+      'en': 'Reset'
+    },
+    'apply': {
+      'ru': 'Применить',
+      'kk': 'Қолдану',
+      'en': 'Apply'
+    },
+    'no_results_desc': {
+      'ru': 'Попробуйте изменить запрос\nили параметры фильтра',
+      'kk': 'Сұрауды немесе сүзгі параметрлерін\nөзгертіп көріңіз',
+      'en': 'Try changing your query\nor filter parameters'
+    },
+
     // Диалог уровня
     'level_up_title': {'ru': 'НОВЫЙ УРОВЕНЬ!', 'kk': 'ЖАҢА ДЕҢГЕЙ!', 'en': 'LEVEL UP!'},
     'level_up_desc': {'ru': 'Поздравляем! Вы достигли уровня', 'kk': 'Құттықтаймыз! Сіз деңгейге жеттіңіз:', 'en': 'Congrats! You reached level'},
